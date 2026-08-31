@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 
 # Import our newly created layers
 from database import engine, get_db
@@ -18,6 +19,8 @@ from ingestion.retriever import RAGRetriever
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Meritech Enterprise API")
+# Mount static files here so FastAPI knows how to serve HTML/CSS/JS
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 # Enable CORS so your UI developers can connect from their local servers (e.g., localhost:3000)
 app.add_middleware(
@@ -79,6 +82,10 @@ def login(payload: UserLoginSchema, db: Session = Depends(get_db)):
         user_name=f"{user.first_name} {user.last_name}"
     )
 
+@app.get("/api/status")
+def get_status():
+    """Tells the frontend UI that the RAG backend is awake and ready."""
+    return {"ready": True}
 
 # ── RAG CHAT ENDPOINT (Migrated to FastAPI) ───────────────────────────────────
 

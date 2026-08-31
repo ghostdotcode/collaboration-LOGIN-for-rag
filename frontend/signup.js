@@ -258,27 +258,46 @@ signupForm.addEventListener("submit", function (event) {
     // =========================
 
     if (isValid) {
+        // Build the precise payload matching your Pydantic schema
+        const payload = {
+            first_name: firstName.value.trim(),
+            last_name: lastName.value.trim(),
+            email_address: email.value.trim(),
+            password: password.value,
+            confirm_password: confirmPassword.value
+        };
 
-        successMessage.textContent =
-            "Signup form validated successfully.";
+        // Fire the async request to your FastAPI backend
+        fetch("http://localhost:8000/signup", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        })
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok) {
+                    // If FastAPI throws an error (e.g., email already registered)
+                    throw new Error(data.detail || "Signup failed");
+                }
+                return data;
+            })
+            .then(data => {
+                // Success! Save the JWT token to local storage
+                localStorage.setItem("access_token", data.access_token);
+                localStorage.setItem("user_name", data.user_name);
 
-        /*
-         * Backend integration will be added later.
-         *
-         * Example future flow:
-         *
-         * fetch("http://127.0.0.1:8000/signup", {
-         *     method: "POST",
-         *     headers: {
-         *         "Content-Type": "application/json"
-         *     },
-         *     body: JSON.stringify({
-         *         first_name: firstName.value,
-         *         last_name: lastName.value,
-         *         email: email.value,
-         *         password: password.value
-         *     })
-         * });
-         */
+                successMessage.style.color = "green";
+                successMessage.textContent = "Account created successfully! Redirecting...";
+
+                // Redirect to your main index file
+                setTimeout(() => {
+                    window.location.href = "/frontend/index.html";
+                }, 1500);
+            }).catch(error => {
+                successMessage.style.color = "red";
+                successMessage.textContent = error.message;
+            });
     }
 });
