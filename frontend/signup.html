@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+
+    <link rel="stylesheet" href="signup.css">
+</head>
+
+<body>
+
+    <main class="signup-container">
+
+        <div class="signup-card">
+
+            <div class="signup-header">
+                <h1>Create Account</h1>
+                <p>Sign up to create your account</p>
+            </div>
+
+            <form id="signupForm" novalidate>
+
+                <!-- First Name and Last Name -->
+                <div class="name-row">
+
+                    <div class="form-group">
+                        <label for="firstName">First Name</label>
+
+                        <input
+                            type="text"
+                            id="firstName"
+                            name="firstName"
+                            placeholder="Enter first name"
+                            autocomplete="given-name"
+                        >
+
+                        <small class="error-message" id="firstNameError"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lastName">Last Name</label>
+
+                        <input
+                            type="text"
+                            id="lastName"
+                            name="lastName"
+                            placeholder="Enter last name"
+                            autocomplete="family-name"
+                        >
+
+                        <small class="error-message" id="lastNameError"></small>
+                    </div>
+
+                </div>
+
+                <!-- Email -->
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="Enter your email"
+                        autocomplete="email"
+                    >
+
+                    <small class="error-message" id="emailError"></small>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                    <label for="password">Password</label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Create a password"
+                        autocomplete="new-password"
+                    >
+
+                    <small class="password-hint">
+                        Minimum 8 characters with at least one letter and one number.
+                    </small>
+
+                    <small class="error-message" id="passwordError"></small>
+                </div>
+
+                <!-- Confirm Password -->
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        placeholder="Re-enter your password"
+                        autocomplete="new-password"
+                    >
+
+                    <small class="error-message" id="confirmPasswordError"></small>
+                </div>
+
+                <!-- Terms -->
+                <div class="terms-group">
+
+                    <label class="checkbox-label">
+
+                        <input
+                            type="checkbox"
+                            id="terms"
+                            name="terms"
+                        >
+
+                        <span>
+                            I agree to the
+                            <a href="#" class="terms-link">
+                                Terms and Conditions
+                            </a>
+                        </span>
+
+                    </label>
+
+                    <small class="error-message" id="termsError"></small>
+
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="signup-button">
+                    Create Account
+                </button>
+
+                <!-- Success Message -->
+                <p id="successMessage" class="success-message"></p>
+
+            </form>
+
+            <!-- Login Link -->
+            <div class="login-link">
+                Already have an account?
+                <a href="login.html">Login</a>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script src="signup.js"></script>
+
+</body>
+</html>
