@@ -51,9 +51,7 @@ togglePassword.addEventListener("click", function () {
 });
 
 
-// =========================
 // EMAIL VALIDATION
-// =========================
 
 function validateEmail() {
 
