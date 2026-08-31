@@ -1,0 +1,274 @@
+/* =========================
+   Global Styles
+========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    font-family: Arial, Helvetica, sans-serif;
+    background:linear-gradient(135deg, #667EEA, #764BA2);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 20px;
+}
+
+
+/* =========================
+   Main Container
+========================= */
+
+.signup-container {
+    width: 100%;
+    max-width: 520px;
+}
+
+
+/* =========================
+   Signup Card
+========================= */
+
+.signup-card {
+    background: #ffffff;
+    padding: 35px;
+    border-radius: 12px;
+
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================
+   Header
+========================= */
+
+.signup-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.signup-header h1 {
+    font-size: 30px;
+    color: #222222;
+    margin-bottom: 8px;
+}
+
+.signup-header p {
+    color: #666666;
+    font-size: 14px;
+}
+
+
+/* =========================
+   Form
+========================= */
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 7px;
+
+    font-size: 14px;
+    font-weight: 600;
+
+    color: #333333;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"] {
+    width: 100%;
+
+    padding: 12px 14px;
+
+    border: 1px solid #d4d9e2;
+    border-radius: 7px;
+
+    font-size: 14px;
+
+    outline: none;
+
+    transition: border-color 0.2s ease,
+                box-shadow 0.2s ease;
+}
+
+.form-group input:focus {
+    border-color: #2563eb;
+
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+
+/* =========================
+   First Name / Last Name
+========================= */
+
+.name-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+
+/* =========================
+   Password Hint
+========================= */
+
+.password-hint {
+    display: block;
+    margin-top: 6px;
+
+    font-size: 12px;
+    color: #777777;
+}
+
+
+/* =========================
+   Terms
+========================= */
+
+.terms-group {
+    margin-bottom: 20px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+
+    font-size: 13px;
+    color: #555555;
+}
+
+.checkbox-label input {
+    margin-top: 2px;
+}
+
+.checkbox-label a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.checkbox-label a:hover {
+    text-decoration: underline;
+}
+
+
+/* =========================
+   Error Messages
+========================= */
+
+.error-message {
+    display: block;
+
+    margin-top: 5px;
+
+    font-size: 12px;
+    color: #dc2626;
+}
+
+
+/* =========================
+   Invalid Input
+========================= */
+
+.input-error {
+    border-color: #dc2626 !important;
+}
+
+
+/* =========================
+   Signup Button
+========================= */
+
+.signup-button {
+    width: 100%;
+
+    padding: 13px;
+
+    border: none;
+    border-radius: 7px;
+
+    background: #2563eb;
+    color: #ffffff;
+
+    font-size: 15px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: background 0.2s ease;
+}
+
+.signup-button:hover {
+    background: #1d4ed8;
+}
+
+
+/* =========================
+   Success Message
+========================= */
+
+.success-message {
+    margin-top: 15px;
+
+    text-align: center;
+
+    font-size: 14px;
+    color: #15803d;
+}
+
+
+/* =========================
+   Login Link
+========================= */
+
+.login-link {
+    margin-top: 20px;
+
+    text-align: center;
+
+    font-size: 14px;
+    color: #666666;
+}
+
+.login-link a {
+    color: #2563eb;
+
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+
+
+/* =========================
+   Responsive Design
+========================= */
+
+@media (max-width: 600px) {
+
+    .signup-card {
+        padding: 25px 20px;
+    }
+
+    .name-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .signup-header h1 {
+        font-size: 26px;
+    }
+}
