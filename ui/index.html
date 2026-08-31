@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EKB's AI Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* ══════════════════════════════════════════════════
+       RESET & BASE
+    ══════════════════════════════════════════════════ */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #080b14;
+      --surface: #0e1120;
+      --surface-2: #151829;
+      --border: rgba(255, 255, 255, 0.07);
+      --border-glow: rgba(99, 102, 241, 0.55);
+      --text: #e2e8f0;
+      --text-muted: #8892aa;
+      --accent-1: #6366f1;
+      /* indigo */
+      --accent-2: #8b5cf6;
+      /* violet */
+      --accent-3: #06b6d4;
+      /* cyan */
+      --think-bg: rgba(99, 102, 241, 0.06);
+      --think-border: rgba(99, 102, 241, 0.25);
+      --user-bg: linear-gradient(135deg, #3b3fcc 0%, #6d28d9 100%);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* ══════════════════════════════════════════════════
+       LAYOUT
+    ══════════════════════════════════════════════════ */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo-ring {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2), var(--accent-3));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
+      animation: pulseRing 3s ease-in-out infinite;
+    }
+
+    @keyframes pulseRing {
+
+      0%,
+      100% {
+        box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
+      }
+
+      50% {
+        box-shadow: 0 0 32px rgba(139, 92, 246, 0.7);
+      }
+    }
+
+    .brand h1 {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .brand p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      transition: background 0.4s;
+    }
+
+    .dot.ready {
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e88;
+    }
+
+    .dot.loading {
+      background: #f59e0b;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    /* ── Chat Area ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      scroll-behavior: smooth;
+    }
+
+    #chat::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    #chat::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #chat::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 99px;
+    }
+
+    /* ── Welcome splash ── */
+    #welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      padding: 40px;
+      animation: fadeUp 0.6s ease;
+    }
+
+    .welcome-orb {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2), var(--accent-3));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 0 60px rgba(99, 102, 241, 0.4);
+      animation: pulseRing 3s ease-in-out infinite;
+    }
+
+    #welcome h2 {
+      font-size: 26px;
+      font-weight: 600;
+    }
+
+    #welcome p {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 380px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .chip {
+      padding: 8px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.25s;
+      color: var(--text-muted);
+    }
+
+    .chip:hover {
+      border-color: var(--accent-1);
+      color: var(--text);
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);
+    }
+
+    /* ── Messages ── */
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      animation: fadeUp 0.35s ease;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* user bubble */
+    .msg-user {
+      align-items: flex-end;
+    }
+
+    .bubble-user {
+      background: var(--user-bg);
+      padding: 12px 18px;
+      border-radius: var(--radius) var(--radius) 4px var(--radius);
+      max-width: 72%;
+      font-size: 15px;
+      line-height: 1.5;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+    }
+
+    /* ai message */
+    .msg-ai {
+      align-items: flex-start;
+    }
+
+    .ai-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .ai-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .ai-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Thinking block (inside completed message) ── */
+    .think-block {
+      border: 1px solid var(--think-border);
+      border-radius: var(--radius-sm);
+      background: var(--think-bg);
+      overflow: hidden;
+    }
+
+    .think-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--accent-2);
+      font-weight: 500;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .think-toggle:hover {
+      background: rgba(99, 102, 241, 0.08);
+    }
+
+    .think-chevron {
+      transition: transform 0.3s;
+      font-size: 11px;
+    }
+
+    .think-chevron.open {
+      transform: rotate(180deg);
+    }
+
+    .think-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-style: italic;
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 0 14px;
+    }
+
+    .think-body.open {
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 0 14px 12px;
+    }
+
+    .think-body::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .think-body::-webkit-scrollbar-thumb {
+      background: var(--think-border);
+      border-radius: 99px;
+    }
+
+    /* ── Answer text ── */
+    .answer-text {
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--text);
+    }
+
+    /* markdown inside answer */
+    .answer-text h1,
+    .answer-text h2,
+    .answer-text h3 {
+      font-weight: 600;
+      margin: 16px 0 6px;
+    }
+
+    .answer-text p {
+      margin: 6px 0;
+    }
+
+    .answer-text ul,
+    .answer-text ol {
+      padding-left: 22px;
+      margin: 8px 0;
+    }
+
+    .answer-text li {
+      margin: 4px 0;
+    }
+
+    .answer-text strong {
+      color: #c7d2fe;
+    }
+
+    .answer-text code {
+      font-family: 'Courier New', monospace;
+      background: rgba(99, 102, 241, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .answer-text pre {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+
+    .answer-text pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .answer-text hr {
+      border-color: var(--border);
+      margin: 16px 0;
+    }
+
+    /* ══════════════════════════════════════════════════
+       BOTTOM PANEL (thinking stream + input)
+    ══════════════════════════════════════════════════ */
+    .bottom {
+      flex-shrink: 0;
+      padding: 0 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Live thinking panel (above input) ── */
+    #think-live {
+      border: 1px solid var(--think-border);
+      border-radius: var(--radius);
+      background: var(--think-bg);
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.4s ease, opacity 0.35s ease, padding 0.4s;
+    }
+
+    #think-live.visible {
+      max-height: 160px;
+      opacity: 1;
+      padding: 12px 16px 14px;
+    }
+
+    .think-live-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+
+    /* spinning orb */
+    .spin-orb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent-1), var(--accent-2), var(--accent-3), var(--accent-1));
+      animation: spin 1.2s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* three dots */
+    .dots span {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent-2);
+      margin: 0 2px;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+
+    .dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes bounce {
+
+      0%,
+      100% {
+        transform: translateY(0);
+        opacity: 0.5;
+      }
+
+      50% {
+        transform: translateY(-4px);
+        opacity: 1;
+      }
+    }
+
+    #think-live-text {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-style: italic;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 100px;
+      overflow-y: auto;
+      line-height: 1.55;
+    }
+
+    #think-live-text::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    #think-live-text::-webkit-scrollbar-thumb {
+      background: var(--think-border);
+      border-radius: 99px;
+    }
+
+    /* shimmer overlay on thinking text */
+    #think-live-text::after {
+      content: '';
+      display: block;
+      height: 28px;
+      background: linear-gradient(to bottom, transparent, var(--think-bg));
+      position: sticky;
+      bottom: 0;
+      pointer-events: none;
+    }
+
+    /* ── Input row ── */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .input-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    #query {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      padding: 14px 50px 14px 20px;
+      resize: none;
+      overflow-y: auto;
+      min-height: 52px;
+      max-height: 180px;
+      line-height: 1.55;
+      transition:
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        min-height 0.3s ease,
+        background 0.3s ease;
+      outline: none;
+    }
+
+    /* Hover glow */
+    #query:hover:not(:disabled) {
+      border-color: rgba(99, 102, 241, 0.55);
+      box-shadow:
+        0 0 0 1px rgba(99, 102, 241, 0.12),
+        0 0 24px rgba(99, 102, 241, 0.22);
+    }
+
+    /* Focus expand + glow */
+    #query:focus {
+      border-color: var(--border-glow);
+      box-shadow:
+        0 0 0 2px rgba(99, 102, 241, 0.18),
+        0 0 36px rgba(99, 102, 241, 0.35);
+      background: var(--surface);
+      min-height: 90px;
+    }
+
+    #query::placeholder {
+      color: var(--text-muted);
+    }
+
+    #query:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ── Send button ── */
+    #send-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    #send-btn:hover:not(:disabled) {
+      transform: scale(1.08);
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.6);
+    }
+
+    #send-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    #send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #send-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* ── Hint text ── */
+    .hint {
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.2);
+      margin-top: -2px;
+    }
+
+    /* ══════════════════════════════════════════════════
+       CURSOR BLINK (streaming)
+    ══════════════════════════════════════════════════ */
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--accent-1);
+      border-radius: 1px;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.85s step-end infinite;
+    }
+
+    /* ══════════════════════════════════════════════════
+       TOAST
+    ══════════════════════════════════════════════════ */
+    #toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e2e;
+      border: 1px solid var(--border);
+      padding: 10px 20px;
+      border-radius: 99px;
+      font-size: 13px;
+      color: var(--text-muted);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      z-index: 99;
+    }
+
+    #toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="shell">
+
+    <!-- Header -->
+    <header>
+      <div class="logo-ring">🏢</div>
+      <div class="brand">
+        <h1>EKB's AI Assistant</h1>
+        <p>HR Policy · Enterprise Knowledge</p>
+      </div>
+      <div class="status-dot">
+        <div class="dot loading" id="status-dot"></div>
+        <span id="status-label">Connecting…</span>
+      </div>
+    </header>
+
+    <!-- Chat -->
+    <div id="chat">
+      <div id="welcome">
+        <div class="welcome-orb">🏢</div>
+        <h2>Hi, I'm EKB's AI</h2>
+        <p>Ask me anything about company policies, HR guidelines, or employee benefits.</p>
+        <div class="chips">
+          <div class="chip" onclick="fillQuery(this)">What is the leave policy?</div>
+          <div class="chip" onclick="fillQuery(this)">How do I file a helpdesk ticket?</div>
+          <div class="chip" onclick="fillQuery(this)">What are the working hours?</div>
+          <div class="chip" onclick="fillQuery(this)">Explain the sick leave rules</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom panel -->
+    <div class="bottom">
+
+      <!-- Live thinking stream (slides up above input) -->
+      <div id="think-live">
+        <div class="think-live-header">
+          <div class="spin-orb"></div>
+          Thinking
+          <span class="dots"><span></span><span></span><span></span></span>
+        </div>
+        <div id="think-live-text"></div>
+      </div>
+
+      <!-- Input row -->
+      <div class="input-row">
+        <div class="input-wrap">
+          <textarea id="query" placeholder="Ask anything about XYZ policies…" rows="1" autocomplete="off"
+            spellcheck="true"></textarea>
+        </div>
+        <button id="send-btn" onclick="sendQuery()" aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+
+      <p class="hint">Enter to send · Shift+Enter for new line</p>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    /* ── marked config ── */
+    marked.setOptions({ breaks: true, gfm: true });
+
+    /* ── State ── */
+    let streaming = false;
+
+    /* ── DOM refs ── */
+    const chatEl = document.getElementById('chat');
+    const welcomeEl = document.getElementById('welcome');
+    const queryEl = document.getElementById('query');
+    const sendBtn = document.getElementById('send-btn');
+    const thinkLive = document.getElementById('think-live');
+    const thinkLiveTxt = document.getElementById('think-live-text');
+    const statusDot = document.getElementById('status-dot');
+    const statusLabel = document.getElementById('status-label');
+    const toastEl = document.getElementById('toast');
+
+    /* ── Auto-resize textarea ── */
+    queryEl.addEventListener('input', () => {
+      queryEl.style.height = 'auto';
+      queryEl.style.height = Math.min(queryEl.scrollHeight, 180) + 'px';
+    });
+
+    /* ── Enter to send ── */
+    queryEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
+    });
+
+    /* ── Chip fill ── */
+    function fillQuery(el) {
+      queryEl.value = el.textContent;
+      queryEl.focus();
+      queryEl.dispatchEvent(new Event('input'));
+    }
+
+    /* ── Toast ── */
+    function showToast(msg, dur = 2500) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), dur);
+    }
+
+    /* ── Status polling ── */
+    async function pollStatus() {
+      try {
+        const r = await fetch('/api/status');
+        const d = await r.json();
+        if (d.ready) {
+          statusDot.className = 'dot ready';
+          statusLabel.textContent = 'Ready';
+          sendBtn.disabled = false;
+          queryEl.disabled = false;
+        } else if (d.error) {
+          statusDot.className = 'dot';
+          statusLabel.textContent = 'Error';
+          showToast('⚠️ ' + d.error, 5000);
+        } else {
+          setTimeout(pollStatus, 1500);
+        }
+      } catch { setTimeout(pollStatus, 2000); }
+    }
+
+    /* Start polling, disable input initially */
+    sendBtn.disabled = true;
+    queryEl.disabled = true;
+    pollStatus();
+
+    /* ── Main send function ── */
+    async function sendQuery() {
+      const query = queryEl.value.trim();
+      if (!query || streaming) return;
+
+      streaming = true;
+      sendBtn.disabled = true;
+      queryEl.disabled = true;
+
+      /* hide welcome */
+      if (welcomeEl) welcomeEl.style.display = 'none';
+
+      /* add user bubble */
+      appendUserMessage(query);
+
+      /* clear input */
+      queryEl.value = '';
+      queryEl.style.height = 'auto';
+
+      /* show live thinking panel */
+      thinkLiveTxt.textContent = '';
+      thinkLive.classList.add('visible');
+
+      /* create AI message placeholder */
+      const aiMsg = createAIMessage();
+
+      /* ── SSE fetch ── */
+      let thinkingBuffer = '';
+      let answerBuffer = '';
+      let answerEl = aiMsg.querySelector('.answer-text');
+      let thinkBodyEl = aiMsg.querySelector('.think-body');
+      let thinkBlockEl = aiMsg.querySelector('.think-block');
+
+      try {
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop(); // keep incomplete line
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let evt;
+            try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (evt.type === 'status') {
+              thinkLiveTxt.textContent = evt.content;
+
+            } else if (evt.type === 'thinking') {
+              thinkingBuffer += evt.content;
+              thinkLiveTxt.textContent = thinkingBuffer;
+              thinkLiveTxt.scrollTop = thinkLiveTxt.scrollHeight;
+
+            } else if (evt.type === 'thinking_done') {
+              /* move thinking into the message block */
+              thinkLive.classList.remove('visible');
+              if (thinkingBuffer) {
+                thinkBodyEl.textContent = thinkingBuffer;
+                thinkBlockEl.style.display = '';
+              } else {
+                thinkBlockEl.style.display = 'none';
+              }
+
+            } else if (evt.type === 'answer') {
+              answerBuffer += evt.content;
+              /* render markdown, show cursor */
+              answerEl.innerHTML = marked.parse(answerBuffer) + '<span class="cursor"></span>';
+              chatEl.scrollTop = chatEl.scrollHeight;
+
+            } else if (evt.type === 'done') {
+              /* finalize — remove cursor, re-render clean */
+              answerEl.innerHTML = marked.parse(answerBuffer);
+              chatEl.scrollTop = chatEl.scrollHeight;
+              done_cleanup();
+
+            } else if (evt.type === 'error') {
+              answerEl.innerHTML = `<span style="color:#f87171">⚠ ${evt.content}</span>`;
+              thinkLive.classList.remove('visible');
+              done_cleanup();
+            }
+          }
+        }
+      } catch (err) {
+        answerEl.innerHTML = `<span style="color:#f87171">⚠ Connection error: ${err.message}</span>`;
+        thinkLive.classList.remove('visible');
+        done_cleanup();
+      }
+
+      function done_cleanup() {
+        streaming = false;
+        sendBtn.disabled = false;
+        queryEl.disabled = false;
+        queryEl.focus();
+        thinkLive.classList.remove('visible');
+        thinkLiveTxt.textContent = '';
+      }
+    }
+
+    /* ── Append user bubble ── */
+    function appendUserMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'msg msg-user';
+      div.innerHTML = `<div class="bubble-user">${escHtml(text)}</div>`;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    /* ── Create AI message shell ── */
+    function createAIMessage() {
+      const div = document.createElement('div');
+      div.className = 'msg msg-ai';
+      div.innerHTML = `
+      <div class="ai-row">
+        <div class="ai-avatar">✦</div>
+        <div class="ai-body">
+          <!-- thinking block (hidden until ready) -->
+          <div class="think-block" style="display:none">
+            <div class="think-toggle" onclick="toggleThink(this)">
+              <span>✦</span>
+              <span>Thought process</span>
+              <span class="think-chevron">▾</span>
+            </div>
+            <div class="think-body"></div>
+          </div>
+          <!-- answer -->
+          <div class="answer-text">
+            <span class="cursor"></span>
+          </div>
+        </div>
+      </div>`;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return div;
+    }
+
+    /* ── Toggle thinking block ── */
+    function toggleThink(toggleEl) {
+      const body = toggleEl.nextElementSibling;
+      const chevron = toggleEl.querySelector('.think-chevron');
+      body.classList.toggle('open');
+      chevron.classList.toggle('open');
+    }
+
+    /* ── Escape HTML ── */
+    function escHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+  </script>
+
+</body>
+
+</html>
