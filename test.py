@@ -14,7 +14,12 @@ class SignupRequest(BaseModel):
 
 @app.post("/signup")
 def signup(user: SignupRequest):
+
     return {
         "message": "Signup successful",
-        "user": user
+        "data": {
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email
+        }
     }

@@ -56,9 +56,9 @@ function isValidPassword(passwordValue) {
 // Form Submit
 // =========================
 
-signupForm.addEventListener("submit", function (event) {
+signupForm.addEventListener("submit", async function (event) {
 
-    // Prevent actual form submission for now.
+    // Prevent actual form submission.
     event.preventDefault();
 
     let isValid = true;
@@ -254,31 +254,76 @@ signupForm.addEventListener("submit", function (event) {
 
 
     // =========================
-    // Final Validation
+    // Send Data To FastAPI
     // =========================
 
     if (isValid) {
 
-        successMessage.textContent =
-            "Signup form validated successfully.";
+        // Create JavaScript object
+        const signupData = {
+            first_name: firstName.value.trim(),
+            last_name: lastName.value.trim(),
+            email: emailValue,
+            password: password.value,
+            confirm_password: confirmPassword.value
+        };
 
-        /*
-         * Backend integration will be added later.
-         *
-         * Example future flow:
-         *
-         * fetch("http://127.0.0.1:8000/signup", {
-         *     method: "POST",
-         *     headers: {
-         *         "Content-Type": "application/json"
-         *     },
-         *     body: JSON.stringify({
-         *         first_name: firstName.value,
-         *         last_name: lastName.value,
-         *         email: email.value,
-         *         password: password.value
-         *     })
-         * });
-         */
+
+        // Convert JavaScript object to JSON
+        const jsonData = JSON.stringify(signupData);
+
+        console.log("JSON being sent to backend:");
+        console.log(jsonData);
+
+
+        try {
+
+            // Send JSON to FastAPI signup endpoint
+            const response = await fetch(
+                "http://127.0.0.1:8000/signup",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: jsonData
+                }
+            );
+
+
+            // Convert FastAPI JSON response
+            const result = await response.json();
+
+
+            // Check HTTP response
+            if (response.ok) {
+
+                successMessage.textContent =
+                    result.message || "Signup successful.";
+
+                console.log("Backend response:");
+                console.log(result);
+
+            } else {
+
+                console.error("Backend error:");
+                console.error(result);
+
+                successMessage.textContent =
+                    "Signup failed. Please try again.";
+            }
+
+
+        } catch (error) {
+
+            console.error("Error connecting to backend:");
+            console.error(error);
+
+            successMessage.textContent =
+                "Unable to connect to the server.";
+        }
     }
 });
+
