@@ -236,7 +236,7 @@ loginForm.addEventListener("submit", function (event) {
             formMessage.style.color = "green";
 
             setTimeout(() => {
-                window.location.href = "/frontend/index.html";
+                window.location.href = "index.html";
             }, 1000);
         })
         .catch(error => {

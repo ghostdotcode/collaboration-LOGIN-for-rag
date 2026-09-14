@@ -293,7 +293,7 @@ signupForm.addEventListener("submit", function (event) {
 
                 // Redirect to your main index file
                 setTimeout(() => {
-                    window.location.href = "/frontend/index.html";
+                    window.location.href = "index.html";
                 }, 1500);
             }).catch(error => {
                 successMessage.style.color = "red";
