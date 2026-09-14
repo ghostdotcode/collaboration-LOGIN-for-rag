@@ -5,6 +5,8 @@ import time
 import re
 import threading
 from pathlib import Path
+from flask import Flask, request, Response, send_from_directory
+from flask_cors import CORS
 
 # Force UTF-8 output (Useful for Windows, harmless on Linux)
 try:
@@ -14,9 +16,10 @@ except Exception:
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from flask import Flask, request, Response, send_from_directory
+
 
 app = Flask(__name__, static_folder="ui")
+CORS(app)
 
 # ── Retriever (lazy, initialized once in background) ─────────────────────────
 _retriever = None
