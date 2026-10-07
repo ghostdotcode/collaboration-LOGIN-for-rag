@@ -46,3 +46,16 @@ class TestCitationLabel:
 
     def test_unknown_page_and_no_heading(self):
         assert self.row().citation_label() == "Manual"
+
+
+class TestHeadingCleanup:
+    def row(self, path):
+        return UnitRow("u", "d", "Manual", 0, 5, 5, path, "t", None)
+
+    def test_page_number_headings_and_title_root_are_dropped(self):
+        r = self.row(["HUMAN RESOURCES POLICY MANUAL", "SECTION FIVE: LEAVE", "27"])
+        assert r.heading == "SECTION FIVE: LEAVE"
+        assert r.citation_label() == "Manual, p. 5 (SECTION FIVE: LEAVE)"
+
+    def test_only_numeric_path_gives_no_parentheses(self):
+        assert self.row(["12"]).citation_label() == "Manual, p. 5"

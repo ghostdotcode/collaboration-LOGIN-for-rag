@@ -70,7 +70,7 @@ def _boot_engine() -> None:
         state.components["embedder"] = "ok"
 
         reranker = load_reranker() if Config.RERANK_ENABLED else None
-        state.components["reranker"] = "ok" if reranker else "unavailable (falling back to hybrid scores)"
+        state.components["reranker"] = "ok" if reranker else "unavailable (falling back to hybrid scores)" if Config.RERANK_ENABLED else "disabled (not needed on this corpus)"
 
         visual = VisualRetriever()
         if Config.VISUAL_ENABLED:

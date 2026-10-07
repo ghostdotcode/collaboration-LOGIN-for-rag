@@ -1,5 +1,7 @@
 # Meritech Enterprise API
 
+> **Start here:** run `scripts/run_all.sh`, open http://localhost:8000. Full description of the RAG redesign, measurements and edge-case testing: [`docs/RAG_UPGRADE.md`](docs/RAG_UPGRADE.md).
+
 ## Overview
 Meritech Enterprise API is a backend system designed for Retrieval-Augmented Generation (RAG) capabilities with user authentication. It features a modern API architecture to handle chat queries against a knowledge base, alongside user onboarding (signup/login) flows.
 

@@ -56,7 +56,9 @@ _HEADER_KEYS = ("Header 1", "Header 2", "Header 3")
 
 
 def _section_path(metadata: Dict[str, str]) -> List[str]:
-    return [re.sub(r"\s+", " ", metadata[k]).strip() for k in _HEADER_KEYS if metadata.get(k)]
+    parts = [re.sub(r"\s+", " ", metadata[k]).strip() for k in _HEADER_KEYS if metadata.get(k)]
+    # A bare number is a PDF page number the parser mistook for a heading.
+    return [p for p in parts if not p.isdigit()]
 
 
 def pdf_page_texts(pdf: Path) -> List[str]:
@@ -180,7 +182,9 @@ def build_from_legacy(legacy_json: Path, pdf: Path, title: str) -> KnowledgeDocu
     )
 
 
-def index_document(doc: KnowledgeDocument, store, embedder, force: bool = False) -> Dict[str, object]:
+def index_document(
+    doc: KnowledgeDocument, store, embedder, force: bool = False, okf_dir: Optional[Path] = None
+) -> Dict[str, object]:
     """Embed and store a document; skip it if nothing has changed."""
     if not doc.units:
         # A scanned (image-only) or empty PDF yields no text. Replacing the stored
@@ -205,7 +209,7 @@ def index_document(doc: KnowledgeDocument, store, embedder, force: bool = False)
         texts = [unit.passage_for_embedding(p, doc.title) for p in unit.passages]
         vectors[unit.unit_id] = embedder.embed_passages(texts)
     store.replace_document(doc, vectors, embedder.model_name)
-    write_okf(doc, Config.OKF_DIR)
+    write_okf(doc, okf_dir or Config.OKF_DIR)
     return {
         "doc_id": doc.doc_id,
         "status": "replaced" if state else "created",

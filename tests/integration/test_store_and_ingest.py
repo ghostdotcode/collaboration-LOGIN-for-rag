@@ -6,6 +6,7 @@ import pymupdf
 import pytest
 from sqlalchemy import text
 
+from ingestion import pipeline
 from ingestion.pipeline import IngestionError, build_from_pdf, index_document
 from rag.okf import KnowledgeDocument, KnowledgeUnit, normalise_units, stable_id
 from rag.store import Store
@@ -33,6 +34,12 @@ class FakeEmbedder:
 
     def embed_query(self, q):
         return self._vec(q)
+
+
+@pytest.fixture(autouse=True)
+def _okf_to_tmp(tmp_path, monkeypatch):
+    """Never write test documents into the real data/okf directory."""
+    monkeypatch.setattr(pipeline.Config, "OKF_DIR", tmp_path / "okf")
 
 
 @pytest.fixture()

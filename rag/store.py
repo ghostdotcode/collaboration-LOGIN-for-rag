@@ -73,7 +73,12 @@ class UnitRow:
 
     @property
     def heading(self) -> str:
-        return " > ".join(self.section_path)
+        """Readable breadcrumb: PDF page numbers parsed as headings ("27") and the
+        document-title root are noise in a citation, so they are dropped here."""
+        parts = [p for p in self.section_path if not p.strip().isdigit()]
+        if parts and parts[0].upper().startswith("HUMAN RESOURCES POLICY MANUAL"):
+            parts = parts[1:]
+        return " > ".join(parts)
 
     def citation_label(self) -> str:
         pages = ""

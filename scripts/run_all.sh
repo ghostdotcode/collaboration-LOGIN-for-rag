@@ -6,6 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 RUN=.run; mkdir -p "$RUN"
 
+# This machine already runs Postgres/Redis on the default ports; use the offset ones.
+export POSTGRES_PORT="${POSTGRES_PORT:-5433}" REDIS_PORT="${REDIS_PORT:-6380}"
 export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@localhost:5433/meritech_db}"
 # Secrets are NOT handled here: the chatbot reads ./.env and the LMS reads
 # lms_backend/.env. They must hold the same signing secret for SSO to work.

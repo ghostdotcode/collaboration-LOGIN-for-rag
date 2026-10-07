@@ -164,3 +164,13 @@ async def test_expired_and_forged_tokens_rejected(http, seeded, monkeypatch):
     async with http:
         assert (await exchange(http, seeded, old)).status_code == 401
         assert (await exchange(http, seeded, forged)).status_code == 401
+
+
+async def test_provisioned_user_gets_balances_immediately(http, session, seeded, monkeypatch):
+    from app.models.leave_balance import LeaveBalance
+    monkeypatch.setattr(settings, "SSO_AUTO_PROVISION", True)
+    async with http:
+        r = await exchange(http, seeded, chatbot_token("balances@acme.example"))
+    uid = __import__("uuid").UUID(r.json()["user_id"])
+    rows = (await session.scalars(select(LeaveBalance).where(LeaveBalance.user_id == uid))).all()
+    assert len(rows) >= 1 and rows[0].leave_type_id == seeded["leave_type"].id

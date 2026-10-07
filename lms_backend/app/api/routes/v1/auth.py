@@ -10,6 +10,7 @@ tenant in single-workspace deployments.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -43,6 +44,7 @@ from app.core.security import (
 )
 from app.db.session import set_tenant_context
 from app.models.enums import AuditAction, UserRole
+from app.models.leave_type import LeaveType
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.auth import (
@@ -54,7 +56,10 @@ from app.schemas.auth import (
 )
 from app.schemas.common import MessageResponse
 from app.schemas.user import UserRead
-from app.services import audit_service
+from app.services import audit_service, balance_service, policy_service
+from app.services.leave_calculator import resolve_leave_year
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -193,6 +198,43 @@ async def login(
     return await _issue_session(session, response, user, context)
 
 
+async def _initialise_balances(session: AsyncSession, tenant: Tenant, user: User) -> None:
+    """
+    Give a just-provisioned employee their balances immediately.
+
+    Without this the dashboard is empty until the nightly accrual job runs.
+    Best-effort inside a savepoint: if it fails the user still gets in, and the
+    nightly job / first leave request create the rows lazily.
+    """
+    today = date.today()
+    try:
+        async with session.begin_nested():
+            leave_year = resolve_leave_year(today, tenant.fiscal_year_start_month)
+            leave_types = (
+                await session.scalars(
+                    select(LeaveType).where(
+                        LeaveType.tenant_id == tenant.id, LeaveType.is_active.is_(True)
+                    )
+                )
+            ).all()
+            for leave_type in leave_types:
+                policy = await policy_service.resolve_policy(
+                    session, tenant_id=tenant.id, leave_type_id=leave_type.id, on_date=today, user=user
+                )
+                if policy is None:
+                    continue
+                await balance_service.get_or_create_balance(
+                    session, tenant_id=tenant.id, user_id=user.id,
+                    leave_type_id=leave_type.id, year=leave_year.key, policy=policy,
+                )
+                await balance_service.sync_accrual(
+                    session, user=user, leave_type_id=leave_type.id,
+                    leave_year=leave_year, as_of=today, policy=policy,
+                )
+    except Exception:  # noqa: BLE001 - never block sign-in on this
+        logger.warning("could not initialise balances for %s", user.email, exc_info=True)
+
+
 def _names_from_claims(claims: dict, email: str) -> tuple[str, str]:
     """First/last name for a JIT-provisioned user, from token claims or the email."""
     first = str(claims.get("first_name") or "").strip()
@@ -255,6 +297,7 @@ async def _auto_provision(
         user_agent=context.user_agent,
         request_id=context.request_id,
     )
+    await _initialise_balances(session, tenant, user)
     return user
 
 
