@@ -116,3 +116,10 @@ crash.log
 # ──────────────────────────────────────────────────────────────────────────────
 *.bak
 *.tmp
+
+# Runtime artefacts of the RAG upgrade
+.run/
+.venv-visual/
+data/visual/
+data/page_cache/
+eval/results/

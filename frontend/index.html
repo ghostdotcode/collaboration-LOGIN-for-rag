@@ -8,8 +8,33 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Pinned + self-hosted (was an unpinned CDN `marked` whose output was injected as raw HTML) -->
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
 
+  <style>
+    /* ── Citations ── */
+    .sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .source-chip {
+      font-size: 12px; padding: 5px 10px; border-radius: 99px; cursor: pointer;
+      color: var(--text-muted); background: var(--surface-2);
+      border: 1px solid var(--border); transition: border-color .15s, color .15s;
+    }
+    .source-chip:hover { border-color: var(--border-glow); color: var(--text); }
+    .notice { font-size: 12px; color: #fbbf24; margin-top: 8px; }
+    #page-modal {
+      display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.78);
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    #page-modal.open { display: flex; }
+    #page-modal .panel {
+      max-width: min(900px, 94vw); max-height: 94vh; overflow: auto; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;
+    }
+    #page-modal img { width: 100%; display: block; border-radius: 6px; background: #fff; }
+    #page-modal .cap { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; gap: 12px; }
+    #page-modal button { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 2px 10px; cursor: pointer; }
+  </style>
   <style>
     /* ══════════════════════════════════════════════════
        RESET & BASE
@@ -806,9 +831,20 @@
 
   <div id="toast"></div>
 
+  <div id="page-modal" onclick="if (event.target === this) closePage()">
+    <div class="panel">
+      <div class="cap"><span id="page-modal-title"></span><button onclick="closePage()">Close</button></div>
+      <img id="page-modal-img" alt="Policy manual page" />
+    </div>
+  </div>
+
   <script>
     /* ── marked config ── */
     marked.setOptions({ breaks: true, gfm: true });
+    /* Model output is untrusted: always sanitise before it touches innerHTML. */
+    function renderMarkdown(md) { return DOMPurify.sanitize(marked.parse(md)); }
+    const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || '') });
+    let chatHistory = [];   // last turns sent back so follow-ups ("and for part-time staff?") work
 
     /* ── State ── */
     let streaming = false;
@@ -920,12 +956,28 @@
       let thinkBodyEl = aiMsg.querySelector('.think-body');
       let thinkBlockEl = aiMsg.querySelector('.think-block');
 
+      let sources = [];
+      let abstained = false;
       try {
         const res = await fetch('/api/ask', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query }),
+          headers: authHeaders(),
+          body: JSON.stringify({ query, history: chatHistory.slice(-6) }),
         });
+
+        if (!res.ok) {
+          let msg = 'Request failed (' + res.status + ')';
+          try { const j = await res.json(); if (j.detail) msg = j.detail; } catch { }
+          if (res.status === 401) {
+            msg = 'Your session has expired. Redirecting to sign in…';
+            localStorage.removeItem('access_token');
+            setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+          }
+          answerEl.textContent = '⚠ ' + msg;
+          thinkLive.classList.remove('visible');
+          done_cleanup();
+          return;
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -947,6 +999,9 @@
             if (evt.type === 'status') {
               thinkLiveTxt.textContent = evt.content;
 
+            } else if (evt.type === 'sources') {
+              sources = evt.sources || [];
+
             } else if (evt.type === 'thinking') {
               thinkingBuffer += evt.content;
               thinkLiveTxt.textContent = thinkingBuffer;
@@ -964,25 +1019,35 @@
 
             } else if (evt.type === 'answer') {
               answerBuffer += evt.content;
-              /* render markdown, show cursor */
-              answerEl.innerHTML = marked.parse(answerBuffer) + '<span class="cursor"></span>';
+              answerEl.innerHTML = renderMarkdown(answerBuffer) + '<span class="cursor"></span>';
               chatEl.scrollTop = chatEl.scrollHeight;
 
+            } else if (evt.type === 'notice') {
+              const n = document.createElement('div');
+              n.className = 'notice';
+              n.textContent = evt.content;
+              answerEl.after(n);
+
             } else if (evt.type === 'done') {
-              /* finalize — remove cursor, re-render clean */
-              answerEl.innerHTML = marked.parse(answerBuffer);
+              abstained = !!evt.abstained;
+              answerEl.innerHTML = renderMarkdown(answerBuffer);
+              if (!abstained) renderSources(aiMsg, sources);
+              if (answerBuffer) {
+                chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: answerBuffer.slice(0, 1500) });
+              }
               chatEl.scrollTop = chatEl.scrollHeight;
               done_cleanup();
 
             } else if (evt.type === 'error') {
-              answerEl.innerHTML = `<span style="color:#f87171">⚠ ${evt.content}</span>`;
+              answerEl.textContent = '⚠ ' + evt.content;
               thinkLive.classList.remove('visible');
               done_cleanup();
             }
           }
         }
+        if (streaming) done_cleanup();   // stream closed without a terminal event
       } catch (err) {
-        answerEl.innerHTML = `<span style="color:#f87171">⚠ Connection error: ${err.message}</span>`;
+        answerEl.textContent = '⚠ Connection error: ' + err.message;
         thinkLive.classList.remove('visible');
         done_cleanup();
       }
@@ -996,6 +1061,39 @@
         thinkLiveTxt.textContent = '';
       }
     }
+
+    /* ── Citations ── */
+    function renderSources(msgEl, sources) {
+      if (!sources.length) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'sources';
+      for (const s of sources) {
+        const b = document.createElement('button');
+        b.className = 'source-chip';
+        b.textContent = '[' + s.n + '] ' + s.label;
+        b.title = s.snippet || '';
+        b.onclick = () => openPage(s);
+        wrap.appendChild(b);
+      }
+      msgEl.querySelector('.ai-body').appendChild(wrap);
+    }
+
+    let modalUrl = null;
+    async function openPage(s) {
+      if (!s.page) { showToast('Page preview is not available for this source.'); return; }
+      try {
+        const r = await fetch('/api/pages/' + encodeURIComponent(s.doc_id) + '/' + s.page,
+          { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || '') } });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (modalUrl) URL.revokeObjectURL(modalUrl);
+        modalUrl = URL.createObjectURL(await r.blob());
+        document.getElementById('page-modal-img').src = modalUrl;
+        document.getElementById('page-modal-title').textContent = s.doc + ' — page ' + s.page + ' · ' + s.heading;
+        document.getElementById('page-modal').classList.add('open');
+      } catch (e) { showToast('Could not load the page preview.'); }
+    }
+    function closePage() { document.getElementById('page-modal').classList.remove('open'); }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closePage(); });
 
     /* ── Append user bubble ── */
     function appendUserMessage(text) {

@@ -11,7 +11,7 @@ tenant in single-workspace deployments.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -30,6 +30,7 @@ from app.core.context import RequestContext
 from app.core.exceptions import (
     AuthenticationError,
     TenantInactiveError,
+    TenantSeatLimitError,
     ValidationFailedError,
 )
 from app.core.security import (
@@ -41,7 +42,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import set_tenant_context
-from app.models.enums import AuditAction
+from app.models.enums import AuditAction, UserRole
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.auth import (
@@ -192,6 +193,71 @@ async def login(
     return await _issue_session(session, response, user, context)
 
 
+def _names_from_claims(claims: dict, email: str) -> tuple[str, str]:
+    """First/last name for a JIT-provisioned user, from token claims or the email."""
+    first = str(claims.get("first_name") or "").strip()
+    last = str(claims.get("last_name") or "").strip()
+    if not first:
+        full = str(claims.get("name") or "").strip()
+        if full:
+            first, _, last = full.partition(" ")
+    if not first:
+        local = email.split("@", 1)[0]
+        first = local.replace(".", " ").replace("_", " ").title() or "Employee"
+    return first[:80], (last.strip() or "-")[:80]
+
+
+async def _auto_provision(
+    session: AsyncSession, tenant: Tenant, email: str, claims: dict, context: RequestContext
+) -> User:
+    """Create an EMPLOYEE profile for an already-authenticated chatbot user."""
+    allowed = {d.lower().lstrip("@") for d in settings.SSO_ALLOWED_EMAIL_DOMAINS}
+    domain = email.rsplit("@", 1)[-1]
+    if allowed and domain not in allowed:
+        raise AuthenticationError(
+            "Your email domain is not eligible for automatic leave-management access. Ask HR to add you."
+        )
+
+    active = await session.scalar(
+        select(func.count(User.id)).where(
+            User.tenant_id == tenant.id, User.is_active.is_(True)
+        )
+    )
+    if int(active or 0) >= tenant.employee_limit:
+        raise TenantSeatLimitError(
+            f"Your plan allows {tenant.employee_limit} active employees. Ask HR to free a seat.",
+            details={"employee_limit": tenant.employee_limit},
+        )
+
+    first, last = _names_from_claims(claims, email)
+    user = User(
+        tenant_id=tenant.id,
+        email=email,
+        first_name=first,
+        last_name=last,
+        role=UserRole.EMPLOYEE,       # never inferred from the token: HR promotes people
+        date_of_joining=date.today(),
+        password_hash=None,           # SSO-only account
+    )
+    session.add(user)
+    await session.flush()
+    await audit_service.record(
+        session,
+        tenant_id=tenant.id,
+        action=AuditAction.CREATE,
+        entity_type="user",
+        entity_id=user.id,
+        actor_id=user.id,
+        actor_email=email,
+        after={"email": email, "role": user.role.value, "source": "sso_auto_provision"},
+        channel=context.channel,
+        ip_address=context.ip_address,
+        user_agent=context.user_agent,
+        request_id=context.request_id,
+    )
+    return user
+
+
 @router.post(
     "/sso/exchange",
     response_model=TokenResponse,
@@ -212,16 +278,20 @@ async def sso_exchange(
     proof the user already authenticated moments ago — no second login.
     """
     claims = decode_token(payload.chatbot_token, expected_type=TokenType.ACCESS)
-    email = claims.get("sub")
-    if not email:
-        raise AuthenticationError("The provided token has no subject.")
+    email = str(claims.get("sub") or "").strip().lower()
+    if not email or "@" not in email:
+        raise AuthenticationError("The provided token has no usable email subject.")
 
     tenant = await _resolve_tenant(session, slug=payload.tenant_slug, request=request)
     await set_tenant_context(session, tenant.id)
 
     user = await session.scalar(
-        select(User).where(User.tenant_id == tenant.id, User.email == email)
+        select(User).where(User.tenant_id == tenant.id, func.lower(User.email) == email)
     )
+    if user is None and settings.SSO_AUTO_PROVISION:
+        if not tenant.can_transact:
+            raise TenantInactiveError()
+        user = await _auto_provision(session, tenant, email, claims, context)
     if user is None or not user.is_active:
         raise AuthenticationError(
             "You do not have a leave-management profile in this workspace yet. "

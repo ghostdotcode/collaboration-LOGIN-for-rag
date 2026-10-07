@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Just-in-time provisioning: when a chatbot-authenticated person has no LMS
+    # profile yet, create an EMPLOYEE record instead of dead-ending them with
+    # "ask HR to add you". Off by default (opt-in per deployment); when on, the
+    # tenant's seat limit still applies and every creation is audited.
+    SSO_AUTO_PROVISION: bool = False
+    # Optional allow-list of email domains eligible for auto-provisioning
+    # (empty = any domain). Use it so a public sign-up form cannot mint staff.
+    SSO_ALLOWED_EMAIL_DOMAINS: Annotated[List[str], NoDecode] = []
     # One-click approve/reject links embedded in emails.
     ACTION_TOKEN_EXPIRE_HOURS: int = 72
     REFRESH_COOKIE_NAME: str = "lms_refresh"
@@ -110,7 +118,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
 
-    @field_validator("BACKEND_CORS_ORIGINS", "DEFAULT_WORKING_DAYS", mode="before")
+    @field_validator(
+        "BACKEND_CORS_ORIGINS", "DEFAULT_WORKING_DAYS", "SSO_ALLOWED_EMAIL_DOMAINS", mode="before"
+    )
     @classmethod
     def _split_csv(cls, v):
         """Accept both JSON (`["a","b"]`) and CSV (`a,b`) env var styles."""

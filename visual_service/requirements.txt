@@ -1,0 +1,10 @@
+# Installed into a SEPARATE venv (.venv-visual): colpali-engine needs a newer
+# `transformers` than the text stack pins (4.38.2).
+torch
+colpali-engine>=0.3.10
+pymupdf
+pillow
+fastapi
+uvicorn
+numpy
+httpx

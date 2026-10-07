@@ -113,12 +113,18 @@ async def test_overlapping_request_is_rejected(session, seeded, next_monday):
 
 
 async def test_retroactive_request_blocked_when_policy_forbids(session, seeded, today):
+    # Must be a *working day*: "today - 10 days" lands on a weekend one day in
+    # seven, and the no-working-days validation then fires before the policy
+    # check (this test failed every Sunday-minus-10 for that reason).
+    past = today - timedelta(days=10)
+    while past.weekday() >= 5:
+        past -= timedelta(days=1)
     with pytest.raises(PolicyViolationError):
         await leave_request_service.create_leave_request(
             session,
             user=seeded["employee"],
             tenant=seeded["tenant"],
-            payload=_payload(seeded["leave_type"].id, today - timedelta(days=10)),
+            payload=_payload(seeded["leave_type"].id, past),
             context=CONTEXT,
         )
 
