@@ -1,0 +1,2 @@
+# Placeholder — session.py (async SQLAlchemy engine) and base_class.py
+# (declarative base with tenant_id injection) will be added in a later phase.

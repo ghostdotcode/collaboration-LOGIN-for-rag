@@ -144,6 +144,54 @@
       }
     }
 
+    /* ── Apply for Leave button (top-right, header) ── */
+    .leave-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-left: 14px;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 99px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent-3));
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .leave-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(139, 92, 246, 0.5);
+    }
+
+    .leave-btn:active {
+      transform: translateY(0);
+    }
+
+    .leave-btn svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 460px) {
+      .leave-btn span {
+        display: none;
+      }
+
+      .leave-btn {
+        padding: 10px;
+        border-radius: 50%;
+        margin-left: 8px;
+      }
+    }
+
     /* ── Chat Area ── */
     #chat {
       flex: 1;
@@ -697,6 +745,16 @@
         <div class="dot loading" id="status-dot"></div>
         <span id="status-label">Connecting…</span>
       </div>
+      <button class="leave-btn" id="leave-btn" onclick="openLeavePortal()" aria-label="Apply for Leave">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <path d="M9 16l2 2 4-4"></path>
+        </svg>
+        <span>Apply for Leave</span>
+      </button>
     </header>
 
     <!-- Chat -->
@@ -789,6 +847,19 @@
       toastEl.textContent = msg;
       toastEl.classList.add('show');
       setTimeout(() => toastEl.classList.remove('show'), dur);
+    }
+
+    /* ── Apply for Leave (LMS bridge) ──
+       The LMS is a separate service. It picks up this tab's access_token
+       from localStorage and exchanges it for an LMS session, so the user
+       is never asked to sign in twice. */
+    function openLeavePortal() {
+      if (!localStorage.getItem('access_token')) {
+        showToast('Please sign in first to apply for leave.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+        return;
+      }
+      window.location.href = 'lms/index.html';
     }
 
     /* ── Status polling ── */

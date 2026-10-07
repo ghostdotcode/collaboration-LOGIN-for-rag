@@ -93,6 +93,19 @@ Thumbs.db
 # (docker-compose.yml is intentionally committed)
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Terraform
+# ──────────────────────────────────────────────────────────────────────────────
+# Downloaded provider binaries — hundreds of MB, re-fetched by `init`.
+.terraform/
+# State can contain plaintext secrets; it belongs in the remote backend.
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+# .terraform.lock.hcl IS committed: it pins provider versions across the team.
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Jupyter
 # ──────────────────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/

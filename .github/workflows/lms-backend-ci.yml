@@ -1,0 +1,179 @@
+name: LMS Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lms_backend/**"
+      - ".github/workflows/lms-backend-ci.yml"
+  pull_request:
+    paths:
+      - "lms_backend/**"
+      - ".github/workflows/lms-backend-ci.yml"
+
+concurrency:
+  group: lms-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: lms_backend
+
+jobs:
+  lint:
+    name: Lint & type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ruff mypy
+      - run: ruff check app tests
+      - run: ruff format --check app tests
+      # Non-blocking for now: the ORM/Pydantic boundary needs stub work
+      # before mypy is clean enough to gate merges on.
+      - run: mypy app --ignore-missing-imports
+        continue-on-error: true
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run unit tests with coverage gate
+        # The leave calculator carries the money-equivalent logic, so it is
+        # held to 100% line coverage rather than the project average.
+        run: |
+          pytest tests/unit \
+            --cov=app.services.leave_calculator \
+            --cov-report=term-missing \
+            --cov-fail-under=100
+
+  integration:
+    name: Integration tests (Postgres + Redis)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lms_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      LMS_TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/lms_test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/lms_test
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: ci-secret-key-not-used-in-production-32chars
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Apply migrations
+        run: alembic upgrade head
+      - name: Fail if models have drifted from migrations
+        # Guards the metadata-driven baseline revision: any model change
+        # without a matching migration fails here.
+        run: alembic check
+      - name: Run integration tests
+        run: pytest tests/integration -m integration
+
+  sonar:
+    name: SonarQube scan
+    runs-on: ubuntu-latest
+    needs: [unit]
+    env:
+      # Read into env because the `secrets` context is not available in a
+      # job-level `if:` — forks and secret-less clones must not fail here.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Sonar's new-code detection needs history, not a shallow clone.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Coverage report for Sonar
+        run: pytest tests/unit --cov=app --cov-report=xml:coverage.xml
+      - name: Scan
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          projectBaseDir: lms_backend
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+      - name: Skipped
+        if: env.SONAR_TOKEN == ''
+        run: echo "SONAR_TOKEN not configured — scan skipped."
+
+  docker:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: [lint, unit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: lms_backend
+          push: false
+          load: true
+          tags: lms-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke-test the image
+        run: |
+          docker run -d --name lms-smoke -p 8000:8000 \
+            -e SECRET_KEY=ci-secret-key-not-used-in-production-32chars \
+            lms-backend:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/live; then exit 0; fi
+            sleep 2
+          done
+          echo "container failed to become live"; docker logs lms-smoke; exit 1
+      - name: Build the hardened (distroless) variant
+        uses: docker/build-push-action@v5
+        with:
+          context: lms_backend
+          target: distroless
+          push: false
+          load: true
+          tags: lms-backend:${{ github.sha }}-distroless
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan the image for known CVEs
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: lms-backend:${{ github.sha }}-distroless
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

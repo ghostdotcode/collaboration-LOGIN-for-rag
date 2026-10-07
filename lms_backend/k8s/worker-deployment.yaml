@@ -1,0 +1,184 @@
+# Celery workers, split by queue so the midnight accrual storm and
+# transactional email scale independently of each other.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-worker-accrual
+  namespace: lms
+  labels:
+    app.kubernetes.io/name: lms-backend
+    app.kubernetes.io/component: worker-accrual
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lms-backend
+      app.kubernetes.io/component: worker-accrual
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lms-backend
+        app.kubernetes.io/component: worker-accrual
+    spec:
+      serviceAccountName: lms-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/meritech/lms-backend:latest
+          command:
+            - celery
+            - -A
+            - app.tasks.celery_app.celery_app
+            - worker
+            - --queues=accrual
+            - --concurrency=4
+            - --loglevel=INFO
+            # Recycle workers periodically; long-lived Python processes doing
+            # bulk ORM work are prone to creeping memory growth.
+            - --max-tasks-per-child=200
+          envFrom:
+            - configMapRef:
+                name: lms-backend-config
+            - secretRef:
+                name: lms-backend-secrets
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - app.tasks.celery_app.celery_app
+                - inspect
+                - ping
+                - -d
+                - celery@$(hostname)
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      # Accrual chunks commit per batch, so a 60s grace period is ample for
+      # an in-flight task to finish rather than being redelivered.
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-worker-email
+  namespace: lms
+  labels:
+    app.kubernetes.io/name: lms-backend
+    app.kubernetes.io/component: worker-email
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lms-backend
+      app.kubernetes.io/component: worker-email
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lms-backend
+        app.kubernetes.io/component: worker-email
+    spec:
+      serviceAccountName: lms-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: worker
+          image: ghcr.io/meritech/lms-backend:latest
+          command:
+            - celery
+            - -A
+            - app.tasks.celery_app.celery_app
+            - worker
+            - --queues=email,default
+            - --concurrency=8
+            - --loglevel=INFO
+          envFrom:
+            - configMapRef:
+                name: lms-backend-config
+            - secretRef:
+                name: lms-backend-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+# Single Beat scheduler. Must never be scaled past 1 replica or every
+# periodic task fires twice.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lms-beat
+  namespace: lms
+  labels:
+    app.kubernetes.io/name: lms-backend
+    app.kubernetes.io/component: beat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lms-backend
+      app.kubernetes.io/component: beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lms-backend
+        app.kubernetes.io/component: beat
+    spec:
+      serviceAccountName: lms-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: beat
+          image: ghcr.io/meritech/lms-backend:latest
+          command:
+            - celery
+            - -A
+            - app.tasks.celery_app.celery_app
+            - beat
+            - --loglevel=INFO
+            - --schedule=/tmp/celerybeat-schedule
+          envFrom:
+            - configMapRef:
+                name: lms-backend-config
+            - secretRef:
+                name: lms-backend-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

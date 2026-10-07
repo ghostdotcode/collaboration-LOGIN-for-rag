@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Copy to terraform.tfvars (git-ignored) or pass with -var-file.
+# Values marked SECRET must come from a vault / CI secret store, never from
+# a committed file.
+# ─────────────────────────────────────────────────────────────────────────
+
+aws_region          = "us-east-1"
+allowed_account_ids = ["123456789012"]
+
+project     = "lms"
+environment = "production"
+cost_center = "HR-PLATFORM"
+
+additional_tags = {
+  DataClassification = "pii"
+  Owner              = "platform-team@meritech.example"
+}
+
+# ── Existing EKS cluster (this stack does not create it) ────────────────
+eks_cluster_name      = "meritech-eks"
+eks_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
+eks_oidc_provider_url = "oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"
+
+# Must be the namespace the k8s/ manifests are actually applied to.
+k8s_namespace            = "lms"
+k8s_service_account_name = "lms-backend"
+
+# ── Networking ─────────────────────────────────────────────────────────
+create_vpc              = true
+vpc_cidr                = "10.40.0.0/16"
+availability_zone_count = 3
+single_nat_gateway      = false
+enable_vpc_flow_logs    = true
+
+# Set these instead when reusing the cluster's VPC (create_vpc = false):
+# existing_vpc_id                  = "vpc-0123456789abcdef0"
+# existing_public_subnet_ids       = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
+# existing_private_app_subnet_ids  = ["subnet-ddd", "subnet-eee", "subnet-fff"]
+# existing_private_data_subnet_ids = ["subnet-ggg", "subnet-hhh", "subnet-iii"]
+
+# ── RDS PostgreSQL 16 ──────────────────────────────────────────────────
+db_instance_class        = "db.m6g.large"
+db_allocated_storage     = 100
+db_max_allocated_storage = 1000
+db_name                  = "meritech_db"
+db_master_username       = "lms_admin"
+db_backup_retention_days = 30
+db_multi_az              = true
+db_deletion_protection   = true
+
+# After the `lms_app` least-privilege role exists, point the app at it:
+# database_url_override = "postgresql+asyncpg://lms_app:SECRET@host:5432/meritech_db"
+
+# ── ElastiCache Redis ──────────────────────────────────────────────────
+redis_node_type          = "cache.m7g.large"
+redis_num_cache_clusters = 3
+
+# ── Amazon MQ (RabbitMQ) ───────────────────────────────────────────────
+mq_host_instance_type = "mq.m5.large"
+mq_deployment_mode    = "CLUSTER_MULTI_AZ"
+mq_username           = "lms_celery"
+
+# ── S3 attachments ─────────────────────────────────────────────────────
+# Leave null to derive <project>-<env>-leave-attachments-<account_id>.
+# attachments_bucket_name = "meritech-lms-leave-attachments"
+attachments_cors_allowed_origins = [
+  "https://leave.meritech.example",
+  "https://chat.meritech.example",
+]
+
+# ── ECR ────────────────────────────────────────────────────────────────
+ecr_repository_name       = "lms-backend"
+ecr_image_retention_count = 30
+# ecr_pull_principal_arns = ["arn:aws:iam::123456789012:role/meritech-eks-node"]
+
+# ── WAF ────────────────────────────────────────────────────────────────
+# Fill in once the ingress ALB exists (see README, order of operations).
+# alb_arn               = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/k8s-lms/abc123"
+# alb_security_group_id = "sg-0123456789abcdef0"
+waf_rate_limit_per_5min = 3000
+waf_count_only_rules    = []
+
+# ── Application secrets (SECRET - supply via CI, not this file) ─────────
+# MUST equal the RAG chatbot's JWT_SECRET_KEY or SSO breaks.
+# shared_jwt_secret_key = "..."
+# smtp_host             = "email-smtp.us-east-1.amazonaws.com"
+# smtp_user             = "..."
+# smtp_password         = "..."
+# stripe_api_key        = "..."
+# stripe_webhook_secret = "..."

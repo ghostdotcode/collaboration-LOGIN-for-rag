@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leave Dashboard · Meritech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="lms.css">
+</head>
+
+<body>
+  <div class="shell" id="lms-app">
+    <header class="lms-header">
+      <div class="lms-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <path d="M9 16l2 2 4-4"></path>
+        </svg>
+      </div>
+      <div class="lms-title">
+        <h1 id="greeting">Leave Dashboard</h1>
+        <p id="subtitle">Balances, approvals and time away</p>
+      </div>
+      <nav id="lms-nav">
+        <a class="nav-link" href="../index.html">← HR Assistant</a>
+        <a class="nav-link" href="team.html" id="nav-team" hidden>Team calendar</a>
+        <a class="nav-link" href="admin.html" id="nav-admin" hidden>Administration</a>
+        <a class="nav-link primary" href="apply.html">Apply for Leave</a>
+      </nav>
+    </header>
+
+    <!-- Single place for connection / auth problems, so the page never
+         renders as an unexplained blank screen. -->
+    <div class="notice" id="dashboard-state" hidden></div>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>My balances</h2>
+        <span id="balance-year"></span>
+      </div>
+      <div class="grid" id="balance-grid">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
+    </section>
+
+    <section class="section" id="approvals-section" hidden>
+      <div class="section-head">
+        <h2>Awaiting my approval</h2>
+        <span id="approvals-count"></span>
+      </div>
+      <div class="card">
+        <ul class="list" id="approvals-list"></ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>My recent requests</h2>
+        <span><a href="apply.html">New request</a></span>
+      </div>
+      <div class="card">
+        <ul class="list" id="requests-list">
+          <li class="muted">Loading…</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-head">
+          <h2>Upcoming holidays</h2>
+        </div>
+        <ul class="list" id="holidays-list">
+          <li class="muted">Loading…</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Who's away</h2>
+          <span>next 30 days</span>
+        </div>
+        <ul class="list" id="team-list">
+          <li class="muted">Loading…</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <script src="lms.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const { el, text, show, notice, toast, api, formatDate, formatRange, days } = LMS;
+
+      const DONUT_RADIUS = 30;
+      const CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
+
+      /* Balance donut. Built with DOM APIs rather than an HTML string so
+         leave-type names from the database can never become markup. */
+      function balanceCard(balance) {
+        const entitled = Number(balance.entitled_days || 0);
+        const used = Number(balance.used_days || 0);
+        const pending = Number(balance.pending_days || 0);
+        const available = Number(balance.available_days || 0);
+        const consumed = entitled > 0 ? Math.min((used + pending) / entitled, 1) : 0;
+
+        const card = document.createElement('div');
+        card.className = 'card balance-card';
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('class', 'donut');
+        svg.setAttribute('viewBox', '0 0 72 72');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label',
+          balance.leave_type_name + ': ' + available + ' of ' + entitled + ' days available');
+
+        const track = document.createElementNS(svgNS, 'circle');
+        track.setAttribute('class', 'donut-track');
+        track.setAttribute('cx', '36');
+        track.setAttribute('cy', '36');
+        track.setAttribute('r', String(DONUT_RADIUS));
+        svg.appendChild(track);
+
+        const value = document.createElementNS(svgNS, 'circle');
+        value.setAttribute('class', 'donut-value');
+        value.setAttribute('cx', '36');
+        value.setAttribute('cy', '36');
+        value.setAttribute('r', String(DONUT_RADIUS));
+        value.setAttribute('stroke', balance.color_hex || '#6366f1');
+        value.setAttribute('stroke-dasharray', String(CIRCUMFERENCE));
+        value.setAttribute('stroke-dashoffset', String(CIRCUMFERENCE * (1 - consumed)));
+        svg.appendChild(value);
+
+        const meta = document.createElement('div');
+        meta.className = 'balance-meta';
+
+        const heading = document.createElement('h3');
+        heading.textContent = balance.leave_type_name;
+
+        const big = document.createElement('div');
+        big.className = 'big';
+        big.textContent = available.toString();
+
+        const sub = document.createElement('div');
+        sub.className = 'sub';
+        sub.textContent =
+          'available of ' + entitled + ' · ' + used + ' used' +
+          (pending > 0 ? ' · ' + pending + ' pending' : '');
+
+        meta.append(heading, big, sub);
+        card.append(svg, meta);
+
+        if (balance.rollover_expires_on) {
+          const expiry = document.createElement('div');
+          expiry.className = 'sub';
+          expiry.textContent = 'Carry-over lapses ' + formatDate(balance.rollover_expires_on);
+          meta.appendChild(expiry);
+        }
+        return card;
+      }
+
+      function listItem(primary, secondary, pillText, pillClass) {
+        const li = document.createElement('li');
+        const grow = document.createElement('div');
+        grow.className = 'grow';
+
+        const top = document.createElement('div');
+        top.textContent = primary;
+        grow.appendChild(top);
+
+        if (secondary) {
+          const bottom = document.createElement('div');
+          bottom.className = 'muted';
+          bottom.textContent = secondary;
+          grow.appendChild(bottom);
+        }
+        li.appendChild(grow);
+
+        if (pillText) {
+          const pill = document.createElement('span');
+          pill.className = 'pill ' + (pillClass || '');
+          pill.textContent = pillText;
+          li.appendChild(pill);
+        }
+        return li;
+      }
+
+      function emptyItem(message) {
+        const li = document.createElement('li');
+        li.className = 'muted';
+        li.textContent = message;
+        return li;
+      }
+
+      function renderDashboard(data, leaveTypeNames) {
+        text(el('greeting'), data.full_name ? 'Hi, ' + data.full_name.split(' ')[0] : 'Leave Dashboard');
+        text(el('balance-year'), 'Leave year ' + data.year);
+
+        const grid = el('balance-grid');
+        grid.replaceChildren();
+        if (!data.balances.length) {
+          const empty = document.createElement('div');
+          empty.className = 'notice';
+          empty.textContent =
+            'No leave balances yet. HR needs to assign you a leave policy.';
+          grid.appendChild(empty);
+        } else {
+          data.balances.forEach(function (balance) {
+            grid.appendChild(balanceCard(balance));
+          });
+        }
+
+        const requests = el('requests-list');
+        requests.replaceChildren();
+        if (!data.my_recent_requests.length) {
+          requests.appendChild(emptyItem('You have not requested any leave yet.'));
+        } else {
+          data.my_recent_requests.forEach(function (request) {
+            requests.appendChild(
+              listItem(
+                (leaveTypeNames[request.leave_type_id] || 'Leave') +
+                ' · ' + days(request.duration_days),
+                formatRange(request.start_date, request.end_date),
+                request.status,
+                request.status
+              )
+            );
+          });
+        }
+
+        const holidays = el('holidays-list');
+        holidays.replaceChildren();
+        if (!data.upcoming_holidays.length) {
+          holidays.appendChild(emptyItem('No holidays on the calendar.'));
+        } else {
+          data.upcoming_holidays.forEach(function (holiday) {
+            holidays.appendChild(
+              listItem(
+                holiday.name,
+                formatDate(holiday.holiday_date) +
+                ' · in ' + holiday.days_away + ' day(s)',
+                holiday.is_optional ? 'optional' : null,
+                'pending'
+              )
+            );
+          });
+        }
+
+        const team = el('team-list');
+        team.replaceChildren();
+        if (!data.team_away.length) {
+          team.appendChild(emptyItem('Nobody in your team is away.'));
+        } else {
+          data.team_away.forEach(function (member) {
+            team.appendChild(
+              listItem(
+                member.full_name,
+                member.leave_type + ' · ' + formatRange(member.start_date, member.end_date),
+                null,
+                null
+              )
+            );
+          });
+        }
+      }
+
+      async function renderApprovals() {
+        let pending;
+        try {
+          pending = await api('/approvals/pending');
+        } catch (error) {
+          // Employees legitimately get 403 here; that's not an error state.
+          return;
+        }
+        if (!pending || !pending.length) return;
+
+        show(el('approvals-section'), true);
+        text(el('approvals-count'), pending.length + ' waiting');
+
+        const list = el('approvals-list');
+        list.replaceChildren();
+
+        pending.forEach(function (request) {
+          const who = request.user
+            ? request.user.first_name + ' ' + request.user.last_name
+            : 'Employee';
+          const li = listItem(
+            who + ' · ' + days(request.duration_days),
+            formatRange(request.start_date, request.end_date) +
+            (request.reason ? ' · ' + request.reason : '')
+          );
+
+          const approve = document.createElement('button');
+          approve.className = 'btn small approve';
+          approve.textContent = 'Approve';
+
+          const reject = document.createElement('button');
+          reject.className = 'btn small reject';
+          reject.textContent = 'Reject';
+
+          async function decide(action) {
+            approve.disabled = reject.disabled = true;
+            try {
+              if (action === 'approve') {
+                await api('/approvals/' + request.id + '/approve', {
+                  method: 'POST',
+                  body: { comment: null },
+                });
+              } else {
+                const comment = prompt('Reason for rejection (required):');
+                if (!comment) {
+                  approve.disabled = reject.disabled = false;
+                  return;
+                }
+                await api('/approvals/' + request.id + '/reject', {
+                  method: 'POST',
+                  body: { comment: comment },
+                });
+              }
+              toast('Request ' + action + 'd.');
+              li.remove();
+              load();
+            } catch (error) {
+              toast(error.message);
+              approve.disabled = reject.disabled = false;
+            }
+          }
+
+          approve.addEventListener('click', function () { decide('approve'); });
+          reject.addEventListener('click', function () { decide('reject'); });
+          li.append(approve, reject);
+          list.appendChild(li);
+        });
+      }
+
+      async function load() {
+        try {
+          const [dashboard, leaveTypes] = await Promise.all([
+            api('/dashboard/me'),
+            api('/leave-types'),
+          ]);
+
+          const names = {};
+          (leaveTypes || []).forEach(function (type) {
+            names[type.id] = type.name;
+          });
+
+          notice(el('dashboard-state'), '', null);
+          renderDashboard(dashboard, names);
+
+          // Role comes from the SSO exchange. The links are a convenience —
+          // the API enforces the actual permissions on every call.
+          const role = sessionStorage.getItem('lms_user_role');
+          show(el('nav-team'), ['manager', 'hr', 'admin'].indexOf(role) !== -1);
+          show(el('nav-admin'), ['hr', 'admin'].indexOf(role) !== -1);
+
+          renderApprovals();
+        } catch (error) {
+          el('balance-grid').replaceChildren();
+          el('requests-list').replaceChildren();
+          el('holidays-list').replaceChildren();
+          el('team-list').replaceChildren();
+
+          if (error.code === 'no_session') {
+            notice(
+              el('dashboard-state'),
+              'Please sign in to the HR assistant first, then reopen the leave portal.',
+              'warn'
+            );
+          } else {
+            notice(el('dashboard-state'), error.message, 'error');
+          }
+        }
+      }
+
+      load();
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,3 @@
+# Placeholder — SQLAlchemy ORM models (Tenant, User, LeaveType, LeavePolicy,
+# LeaveBalance, LeaveRequest, ApprovalWorkflow, HolidayCalendar, AuditLog)
+# will be added in a later phase, pending your review.

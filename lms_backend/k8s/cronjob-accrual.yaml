@@ -1,0 +1,101 @@
+# Nightly accrual trigger.
+#
+# The CronJob does not compute anything — it publishes one fan-out task,
+# which slices every tenant's employees into chunks of ACCRUAL_CHUNK_SIZE
+# across the accrual worker pool. That is how 500k employees finish inside
+# the maintenance window instead of one process grinding through them.
+#
+# Safe to run twice: accrual recomputes balances from policy for a given
+# date rather than incrementing them.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lms-nightly-accrual
+  namespace: lms
+  labels:
+    app.kubernetes.io/name: lms-backend
+    app.kubernetes.io/component: cron-accrual
+spec:
+  schedule: "15 0 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # If the dispatcher hasn't finished publishing in 30 minutes something
+      # is badly wrong; fail loudly rather than overlap with tomorrow.
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: lms-backend
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+          containers:
+            - name: trigger
+              image: ghcr.io/meritech/lms-backend:latest
+              command:
+                - python
+                - -c
+                - |
+                  from app.tasks.accrual_worker import run_nightly_accruals
+                  print(run_nightly_accruals.delay().id)
+              envFrom:
+                - configMapRef:
+                    name: lms-backend-config
+                - secretRef:
+                    name: lms-backend-secrets
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+---
+# Year-end rollover expiry. Runs daily; only acts on balances whose
+# carry-over grace window has actually closed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lms-rollover-expiry
+  namespace: lms
+  labels:
+    app.kubernetes.io/name: lms-backend
+    app.kubernetes.io/component: cron-rollover
+spec:
+  schedule: "0 1 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: lms-backend
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+          containers:
+            - name: trigger
+              image: ghcr.io/meritech/lms-backend:latest
+              command:
+                - python
+                - -c
+                - |
+                  from app.tasks.accrual_worker import expire_rollovers
+                  print(expire_rollovers.delay().id)
+              envFrom:
+                - configMapRef:
+                    name: lms-backend-config
+                - secretRef:
+                    name: lms-backend-secrets

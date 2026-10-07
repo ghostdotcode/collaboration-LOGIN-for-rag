@@ -1,0 +1,47 @@
+# Tooling configuration for the LMS backend.
+#
+# Pinning the lint rule set matters: ruff's defaults change between releases,
+# so without this file a CI runner that picks up a newer ruff can fail a build
+# that passed yesterday on unchanged code.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+# Generated revision bodies follow Alembic's formatting, not ours.
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # warnings
+    "I",    # import sorting
+    "B",    # bugbear
+    "C4",   # comprehensions
+    "SIM",  # simplifications
+    "RUF",  # ruff-specific
+]
+ignore = [
+    # `Depends(...)`, `Query(...)` and `Field(...)` in defaults are the
+    # FastAPI/Pydantic idiom, not the mutable-default bug B008 targets.
+    "B008",
+    # Line length is the formatter's job; flagging it twice adds noise.
+    "E501",
+    # Celery and Pydantic both expect class-level dict/list config attributes.
+    "RUF012",
+]
+
+# Dashes and typographic quotes are used deliberately in user-facing copy.
+allowed-confusables = ["–", "—", "’", "·"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private helpers deliberately to cover defensive branches.
+"tests/**" = ["SIM117"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+plugins = []

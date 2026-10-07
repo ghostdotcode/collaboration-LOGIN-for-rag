@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leave Administration · Meritech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="lms.css">
+  <style>
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 8px 15px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab[aria-selected='true'] {
+      color: #fff;
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    }
+
+    .panel[hidden] {
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 8px 10px 8px 0;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 10px 10px 0;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .step-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 54px 1fr 1fr auto;
+      align-items: end;
+      margin-bottom: 10px;
+    }
+
+    .step-row .level {
+      font-weight: 700;
+      padding-bottom: 12px;
+      color: var(--text-muted);
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      margin-right: 7px;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 620px) {
+      .step-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="shell" id="lms-app">
+    <header class="lms-header">
+      <div class="lms-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"></path>
+          <path d="M9 12l2 2 4-4"></path>
+        </svg>
+      </div>
+      <div class="lms-title">
+        <h1>Leave Administration</h1>
+        <p>Policies, workflows, year-end and billing</p>
+      </div>
+      <nav>
+        <a class="nav-link" href="index.html">← Dashboard</a>
+        <a class="nav-link" href="team.html">Team calendar</a>
+      </nav>
+    </header>
+
+    <div class="notice" id="page-state" hidden></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-panel="panel-types" aria-selected="true">Leave types</button>
+      <button class="tab" role="tab" data-panel="panel-policies" aria-selected="false">Policy versions</button>
+      <button class="tab" role="tab" data-panel="panel-workflows" aria-selected="false">Approval chains</button>
+      <button class="tab" role="tab" data-panel="panel-yearend" aria-selected="false">Year-end</button>
+      <button class="tab" role="tab" data-panel="panel-billing" aria-selected="false">Billing</button>
+    </div>
+
+    <!-- ── Leave types ─────────────────────────────────────────────── -->
+    <section class="panel" id="panel-types">
+      <div class="card section">
+        <div class="section-head">
+          <h2>Configured leave types</h2>
+          <span id="types-count"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Unit</th>
+                <th>Rules</th>
+                <th>Cannot club with</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="types-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Add a leave type</h2>
+        </div>
+        <div class="notice error" id="type-error" hidden style="margin-bottom: 14px;"></div>
+        <form class="form-grid" id="type-form">
+          <div class="field">
+            <label for="type-code">Code</label>
+            <input type="text" id="type-code" maxlength="32" placeholder="SICK" required>
+          </div>
+          <div class="field">
+            <label for="type-name">Name</label>
+            <input type="text" id="type-name" maxlength="120" placeholder="Sick Leave" required>
+          </div>
+          <div class="field">
+            <label for="type-unit">Unit</label>
+            <select id="type-unit">
+              <option value="day">Days</option>
+              <option value="hour">Hours</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="type-color">Colour</label>
+            <input type="color" id="type-color" value="#6366f1">
+          </div>
+          <div class="field">
+            <label for="type-notice">Minimum notice (days)</label>
+            <input type="number" id="type-notice" min="0" max="365" value="0">
+          </div>
+          <div class="field">
+            <label for="type-max-consecutive">Max consecutive days</label>
+            <input type="number" id="type-max-consecutive" min="1" max="365"
+              placeholder="unlimited">
+          </div>
+          <div class="field">
+            <label for="type-attachment-above">Document required above (days)</label>
+            <input type="number" id="type-attachment-above" min="0" max="365" step="0.5"
+              placeholder="never">
+          </div>
+          <div class="field">
+            <label for="type-club">Cannot be clubbed with</label>
+            <input type="text" id="type-club" placeholder="ANNUAL, CASUAL">
+            <span class="hint">Comma-separated leave type codes.</span>
+          </div>
+          <div class="field">
+            <label for="type-flags">Options</label>
+            <div id="type-flags" style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px;">
+              <label><input type="checkbox" id="type-paid" checked> Paid</label>
+              <label><input type="checkbox" id="type-approval" checked> Needs approval</label>
+              <label><input type="checkbox" id="type-half" checked> Half days</label>
+              <label><input type="checkbox" id="type-hourly"> Hourly</label>
+              <label><input type="checkbox" id="type-retro"> Backdating</label>
+            </div>
+          </div>
+        </form>
+        <div class="actions">
+          <button class="btn small" id="type-save">Create leave type</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Policy versions ─────────────────────────────────────────── -->
+    <section class="panel" id="panel-policies" hidden>
+      <div class="card section">
+        <div class="section-head">
+          <h2>Version history</h2>
+          <span>immutable — new rules never rewrite old balances</span>
+        </div>
+        <div class="field" style="max-width: 320px; margin-bottom: 16px;">
+          <label for="policy-type">Leave type</label>
+          <select id="policy-type"></select>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>v</th>
+                <th>Name</th>
+                <th>Effective</th>
+                <th>Quota</th>
+                <th>Accrual</th>
+                <th>Rollover</th>
+                <th>Applies to</th>
+              </tr>
+            </thead>
+            <tbody id="policy-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Publish a new version</h2>
+        </div>
+        <div class="notice error" id="policy-error" hidden style="margin-bottom: 14px;"></div>
+        <form class="form-grid" id="policy-form">
+          <div class="field">
+            <label for="policy-name">Version name</label>
+            <input type="text" id="policy-name" maxlength="120" placeholder="FY27 annual leave">
+          </div>
+          <div class="field">
+            <label for="policy-effective">Effective from</label>
+            <input type="date" id="policy-effective">
+          </div>
+          <div class="field">
+            <label for="policy-quota">Annual quota (days)</label>
+            <input type="number" id="policy-quota" min="0" max="365" step="0.5" value="20">
+          </div>
+          <div class="field">
+            <label for="policy-frequency">Accrual frequency</label>
+            <select id="policy-frequency">
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="annually">Annually</option>
+              <option value="none">None (fixed quota)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-rate">Accrual rate (days/period)</label>
+            <input type="number" id="policy-rate" min="0" max="31" step="0.01" value="1.67">
+          </div>
+          <div class="field">
+            <label for="policy-probation">Accrual starts after (days)</label>
+            <input type="number" id="policy-probation" min="0" max="730" value="0">
+          </div>
+          <div class="field">
+            <label for="policy-rollover">Max rollover (days)</label>
+            <input type="number" id="policy-rollover" min="0" max="365" step="0.5" value="5">
+          </div>
+          <div class="field">
+            <label for="policy-expiry">Rollover expires after (months)</label>
+            <input type="number" id="policy-expiry" min="0" max="24" value="3">
+          </div>
+          <div class="field">
+            <label for="policy-negative">Max negative balance (days)</label>
+            <input type="number" id="policy-negative" min="0" max="60" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="policy-tenure">Minimum tenure (months)</label>
+            <input type="number" id="policy-tenure" min="0" max="480" value="0">
+          </div>
+          <div class="field">
+            <label for="policy-role">Applies to role</label>
+            <select id="policy-role">
+              <option value="">Everyone</option>
+              <option value="employee">Employees</option>
+              <option value="manager">Managers</option>
+              <option value="hr">HR</option>
+              <option value="admin">Admins</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-options">Options</label>
+            <div id="policy-options" style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px;">
+              <label><input type="checkbox" id="policy-prorate" checked> Pro-rate joiners</label>
+              <label><input type="checkbox" id="policy-encash"> Allow encashment</label>
+            </div>
+          </div>
+        </form>
+        <div class="actions">
+          <button class="btn small" id="policy-save">Publish version</button>
+          <span class="hint" style="color: var(--text-muted);">
+            The current version is closed automatically the day before this one starts.
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Approval chains ─────────────────────────────────────────── -->
+    <section class="panel" id="panel-workflows" hidden>
+      <div class="card section">
+        <div class="section-head">
+          <h2>Active chains</h2>
+        </div>
+        <ul class="list" id="workflow-list"></ul>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Build a chain</h2>
+          <span>L1 → L2 → … in order</span>
+        </div>
+        <div class="notice error" id="workflow-error" hidden style="margin-bottom: 14px;"></div>
+        <div class="form-grid" style="margin-bottom: 18px;">
+          <div class="field">
+            <label for="wf-name">Name</label>
+            <input type="text" id="wf-name" maxlength="120" placeholder="Long leave · two levels">
+          </div>
+          <div class="field">
+            <label for="wf-type">Leave type</label>
+            <select id="wf-type">
+              <option value="">Any</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="wf-min-days">Applies from (days)</label>
+            <input type="number" id="wf-min-days" min="0" max="365" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="wf-default">Default chain</label>
+            <select id="wf-default">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="wf-steps"></div>
+        <div class="actions">
+          <button class="btn small ghost" id="wf-add-step">+ Add level</button>
+          <button class="btn small" id="wf-save">Create chain</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Year-end ────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-yearend" hidden>
+      <div class="card">
+        <div class="section-head">
+          <h2>Year-end rollover</h2>
+          <span>dry run first — always</span>
+        </div>
+        <div class="notice" id="yearend-note">
+          A dry run computes exactly what a commit would do, and writes nothing.
+          Review the figures, then commit once.
+        </div>
+        <div class="form-grid" style="margin-top: 16px;">
+          <div class="field">
+            <label for="ye-year">Leave year</label>
+            <input type="number" id="ye-year" min="1970" max="2200">
+          </div>
+          <div class="field">
+            <label for="ye-type">Leave type</label>
+            <select id="ye-type">
+              <option value="">All types</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn small ghost" id="ye-simulate">Run simulation</button>
+          <button class="btn small" id="ye-commit" disabled>Commit</button>
+          <span class="hint" id="ye-status" style="color: var(--text-muted);"></span>
+        </div>
+
+        <div id="ye-summary" class="grid" style="margin-top: 18px;"></div>
+        <div class="table-scroll" style="margin-top: 14px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Leave type</th>
+                <th>Closing</th>
+                <th>Rolls over</th>
+                <th>Lapses</th>
+                <th>Encashed</th>
+              </tr>
+            </thead>
+            <tbody id="ye-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Billing ─────────────────────────────────────────────────── -->
+    <section class="panel" id="panel-billing" hidden>
+      <div class="card section">
+        <div class="section-head">
+          <h2>Subscription</h2>
+          <span id="billing-status"></span>
+        </div>
+        <div id="billing-body" class="muted" style="color: var(--text-muted);">Loading…</div>
+        <div class="actions">
+          <button class="btn small ghost" id="billing-portal" disabled>Manage in Stripe</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-head">
+          <h2>Plans</h2>
+        </div>
+        <ul class="list" id="plan-list"></ul>
+      </div>
+    </section>
+  </div>
+
+  <script src="lms.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const { el, text, show, notice, toast, api, formatDate, days } = LMS;
+
+      let leaveTypes = [];
+      let lastSimulation = null;
+
+      /* ── Tabs ─────────────────────────────────────────────────────── */
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (other) {
+            const selected = other === tab;
+            other.setAttribute('aria-selected', String(selected));
+            show(el(other.dataset.panel), selected);
+          });
+          if (tab.dataset.panel === 'panel-billing') loadBilling();
+        });
+      });
+
+      function fail(error) {
+        notice(
+          el('page-state'),
+          error.code === 'no_session'
+            ? 'Please sign in to the HR assistant first, then reopen the leave portal.'
+            : error.message,
+          'error'
+        );
+      }
+
+      function cell(row, value) {
+        const td = document.createElement('td');
+        td.textContent = value == null || value === '' ? '—' : String(value);
+        row.appendChild(td);
+        return td;
+      }
+
+      /* ── Leave types ──────────────────────────────────────────────── */
+      function renderTypes() {
+        const body = el('types-body');
+        body.replaceChildren();
+        text(el('types-count'), leaveTypes.length + ' configured');
+
+        leaveTypes.forEach(function (type) {
+          const row = document.createElement('tr');
+
+          const nameCell = document.createElement('td');
+          const swatch = document.createElement('span');
+          swatch.className = 'swatch';
+          swatch.style.background = type.color_hex;
+          nameCell.append(swatch, document.createTextNode(type.name + ' (' + type.code + ')'));
+          if (!type.is_active) {
+            const pill = document.createElement('span');
+            pill.className = 'pill cancelled';
+            pill.textContent = 'inactive';
+            pill.style.marginLeft = '8px';
+            nameCell.appendChild(pill);
+          }
+          row.appendChild(nameCell);
+
+          cell(row, type.unit === 'hour' ? 'Hours' : 'Days');
+
+          const rules = [];
+          if (!type.is_paid) rules.push('unpaid');
+          if (!type.requires_approval) rules.push('auto-approved');
+          if (type.allow_half_day) rules.push('half days');
+          if (type.allow_hourly) rules.push('hourly');
+          if (type.min_notice_days) rules.push(type.min_notice_days + 'd notice');
+          if (type.max_consecutive_days) rules.push('max ' + type.max_consecutive_days + 'd');
+          if (type.attachment_required_above_days != null) {
+            rules.push('doc > ' + type.attachment_required_above_days + 'd');
+          }
+          if (type.allow_retroactive) rules.push('backdating');
+          cell(row, rules.join(', '));
+
+          cell(row, (type.cannot_club_with || []).join(', '));
+
+          const actions = document.createElement('td');
+          const toggle = document.createElement('button');
+          toggle.className = 'btn small ghost';
+          toggle.textContent = type.is_active ? 'Deactivate' : 'Reactivate';
+          toggle.addEventListener('click', async function () {
+            toggle.disabled = true;
+            try {
+              await api('/leave-types/' + type.id, {
+                method: 'PATCH',
+                body: { is_active: !type.is_active },
+              });
+              toast(type.name + ' updated.');
+              await loadTypes();
+            } catch (error) {
+              toast(error.message);
+              toggle.disabled = false;
+            }
+          });
+          actions.appendChild(toggle);
+          row.appendChild(actions);
+
+          body.appendChild(row);
+        });
+      }
+
+      el('type-save').addEventListener('click', async function () {
+        const errorBox = el('type-error');
+        const code = el('type-code').value.trim().toUpperCase();
+        const name = el('type-name').value.trim();
+        if (!code || !name) {
+          notice(errorBox, 'A code and a name are required.', 'error');
+          return;
+        }
+
+        const clubbing = el('type-club').value
+          .split(',')
+          .map(function (part) { return part.trim().toUpperCase(); })
+          .filter(Boolean);
+
+        const body = {
+          code: code,
+          name: name,
+          unit: el('type-unit').value,
+          is_paid: el('type-paid').checked,
+          requires_approval: el('type-approval').checked,
+          allow_half_day: el('type-half').checked,
+          allow_hourly: el('type-hourly').checked,
+          allow_retroactive: el('type-retro').checked,
+          min_notice_days: Number(el('type-notice').value || 0),
+          max_consecutive_days: el('type-max-consecutive').value
+            ? Number(el('type-max-consecutive').value)
+            : null,
+          attachment_required_above_days: el('type-attachment-above').value
+            ? Number(el('type-attachment-above').value)
+            : null,
+          cannot_club_with: clubbing,
+          color_hex: el('type-color').value,
+        };
+
+        try {
+          await api('/leave-types', { method: 'POST', body: body });
+          notice(errorBox, '', null);
+          el('type-form').reset();
+          toast(name + ' created.');
+          await loadTypes();
+        } catch (error) {
+          notice(errorBox, error.message, 'error');
+        }
+      });
+
+      /* ── Policy versions ──────────────────────────────────────────── */
+      async function loadPolicies() {
+        const leaveTypeId = el('policy-type').value;
+        const body = el('policy-body');
+        body.replaceChildren();
+        if (!leaveTypeId) return;
+
+        try {
+          const versions = await api('/policies?leave_type_id=' + leaveTypeId);
+          (versions || []).forEach(function (policy) {
+            const row = document.createElement('tr');
+            cell(row, 'v' + policy.version);
+            cell(row, policy.name);
+            cell(
+              row,
+              formatDate(policy.effective_from) + ' → ' +
+              (policy.effective_to ? formatDate(policy.effective_to) : 'current')
+            );
+            cell(row, days(policy.annual_quota_days));
+            cell(
+              row,
+              policy.accrual_frequency === 'none'
+                ? 'fixed'
+                : policy.accrual_rate_days + '/' + policy.accrual_frequency
+            );
+            cell(
+              row,
+              policy.max_rollover_days > 0
+                ? days(policy.max_rollover_days) +
+                (policy.rollover_expiry_months
+                  ? ' (expires ' + policy.rollover_expiry_months + 'mo)'
+                  : '')
+                : 'none'
+            );
+            cell(
+              row,
+              [
+                policy.applies_to_role || 'all roles',
+                policy.min_tenure_months ? policy.min_tenure_months + 'mo tenure' : null,
+              ].filter(Boolean).join(', ')
+            );
+            body.appendChild(row);
+          });
+        } catch (error) {
+          fail(error);
+        }
+      }
+
+      el('policy-save').addEventListener('click', async function () {
+        const errorBox = el('policy-error');
+        const leaveTypeId = el('policy-type').value;
+        if (!leaveTypeId) {
+          notice(errorBox, 'Pick the leave type this policy governs.', 'error');
+          return;
+        }
+        const frequency = el('policy-frequency').value;
+        const rate = Number(el('policy-rate').value || 0);
+        const quota = Number(el('policy-quota').value || 0);
+        const rollover = Number(el('policy-rollover').value || 0);
+        const negative = Number(el('policy-negative').value || 0);
+
+        // Same three invariants the server enforces, checked here so the
+        // user is not bounced by a 422 after filling in twelve fields.
+        if (frequency !== 'none' && rate <= 0) {
+          notice(errorBox, 'Set an accrual rate above zero, or choose "None".', 'error');
+          return;
+        }
+        if (rollover > quota) {
+          notice(errorBox, 'Rollover cannot exceed the annual quota.', 'error');
+          return;
+        }
+        if (!el('policy-effective').value) {
+          notice(errorBox, 'Choose the date this version takes effect.', 'error');
+          return;
+        }
+
+        try {
+          await api('/policies', {
+            method: 'POST',
+            body: {
+              leave_type_id: leaveTypeId,
+              name: el('policy-name').value.trim() || 'Policy',
+              effective_from: el('policy-effective').value,
+              annual_quota_days: quota,
+              accrual_frequency: frequency,
+              accrual_rate_days: rate,
+              prorate_on_joining: el('policy-prorate').checked,
+              accrual_starts_after_days: Number(el('policy-probation').value || 0),
+              max_rollover_days: rollover,
+              rollover_expiry_months: Number(el('policy-expiry').value || 0),
+              allow_encashment: el('policy-encash').checked,
+              allow_negative_balance: negative > 0,
+              max_negative_days: negative,
+              applies_to_role: el('policy-role').value || null,
+              min_tenure_months: Number(el('policy-tenure').value || 0),
+            },
+          });
+          notice(errorBox, '', null);
+          toast('New policy version published.');
+          await loadPolicies();
+        } catch (error) {
+          notice(errorBox, error.message, 'error');
+        }
+      });
+
+      el('policy-type').addEventListener('change', loadPolicies);
+
+      /* ── Approval chains ──────────────────────────────────────────── */
+      function addStepRow() {
+        const container = el('wf-steps');
+        const level = container.children.length + 1;
+        if (level > 10) return;
+
+        const row = document.createElement('div');
+        row.className = 'step-row';
+
+        const label = document.createElement('div');
+        label.className = 'level';
+        label.textContent = 'L' + level;
+
+        const approverField = document.createElement('div');
+        approverField.className = 'field';
+        const approverLabel = document.createElement('label');
+        approverLabel.textContent = 'Approver';
+        const approver = document.createElement('select');
+        [
+          ['reporting_manager', 'Reporting manager'],
+          ['skip_level_manager', 'Skip-level manager'],
+          ['hr', 'HR'],
+          ['role', 'Anyone with a role'],
+        ].forEach(function (pair) {
+          const option = document.createElement('option');
+          option.value = pair[0];
+          option.textContent = pair[1];
+          approver.appendChild(option);
+        });
+        approverField.append(approverLabel, approver);
+
+        const roleField = document.createElement('div');
+        roleField.className = 'field';
+        const roleLabel = document.createElement('label');
+        roleLabel.textContent = 'Role (if applicable)';
+        const role = document.createElement('select');
+        [['', '—'], ['manager', 'Manager'], ['hr', 'HR'], ['admin', 'Admin']]
+          .forEach(function (pair) {
+            const option = document.createElement('option');
+            option.value = pair[0];
+            option.textContent = pair[1];
+            role.appendChild(option);
+          });
+        roleField.append(roleLabel, role);
+
+        const remove = document.createElement('button');
+        remove.className = 'btn small ghost';
+        remove.textContent = 'Remove';
+        remove.addEventListener('click', function () {
+          row.remove();
+          // Levels must stay consecutive from 1, so relabel after a removal.
+          Array.from(container.children).forEach(function (child, index) {
+            child.querySelector('.level').textContent = 'L' + (index + 1);
+          });
+        });
+
+        row.append(label, approverField, roleField, remove);
+        row.querySelector('select').dataset.role = 'approver-type';
+        role.dataset.role = 'approver-role';
+        container.appendChild(row);
+      }
+
+      function collectSteps() {
+        return Array.from(el('wf-steps').children).map(function (row, index) {
+          const type = row.querySelector('[data-role="approver-type"]').value;
+          const role = row.querySelector('[data-role="approver-role"]').value;
+          return {
+            level: index + 1,
+            approver_type: type,
+            approver_role: type === 'role' ? role || null : null,
+            is_mandatory: true,
+          };
+        });
+      }
+
+      async function loadWorkflows() {
+        const list = el('workflow-list');
+        list.replaceChildren();
+        try {
+          const workflows = await api('/workflows');
+          if (!workflows || !workflows.length) {
+            const li = document.createElement('li');
+            li.className = 'muted';
+            li.textContent = 'No chains yet — requests go straight to the reporting manager.';
+            list.appendChild(li);
+            return;
+          }
+          workflows.forEach(function (workflow) {
+            const li = document.createElement('li');
+            const grow = document.createElement('div');
+            grow.className = 'grow';
+            const title = document.createElement('div');
+            title.textContent = workflow.name + (workflow.is_default ? ' · default' : '');
+            const sub = document.createElement('div');
+            sub.className = 'muted';
+            sub.textContent = workflow.steps
+              .slice()
+              .sort(function (a, b) { return a.level - b.level; })
+              .map(function (step) {
+                return 'L' + step.level + ' ' +
+                  step.approver_type.replace(/_/g, ' ') +
+                  (step.approver_role ? ' (' + step.approver_role + ')' : '');
+              })
+              .join('  →  ') +
+              (workflow.min_duration_days > 0
+                ? '   ·   from ' + days(workflow.min_duration_days)
+                : '');
+            grow.append(title, sub);
+
+            const remove = document.createElement('button');
+            remove.className = 'btn small ghost';
+            remove.textContent = 'Deactivate';
+            remove.addEventListener('click', async function () {
+              remove.disabled = true;
+              try {
+                await api('/workflows/' + workflow.id, { method: 'DELETE' });
+                toast('Chain deactivated.');
+                loadWorkflows();
+              } catch (error) {
+                toast(error.message);
+                remove.disabled = false;
+              }
+            });
+
+            li.append(grow, remove);
+            list.appendChild(li);
+          });
+        } catch (error) {
+          fail(error);
+        }
+      }
+
+      el('wf-add-step').addEventListener('click', addStepRow);
+
+      el('wf-save').addEventListener('click', async function () {
+        const errorBox = el('workflow-error');
+        const steps = collectSteps();
+        if (!el('wf-name').value.trim()) {
+          notice(errorBox, 'Give the chain a name.', 'error');
+          return;
+        }
+        if (!steps.length) {
+          notice(errorBox, 'Add at least one approval level.', 'error');
+          return;
+        }
+        const missingRole = steps.find(function (step) {
+          return step.approver_type === 'role' && !step.approver_role;
+        });
+        if (missingRole) {
+          notice(errorBox, 'Level ' + missingRole.level + ' needs a role.', 'error');
+          return;
+        }
+
+        try {
+          await api('/workflows', {
+            method: 'POST',
+            body: {
+              name: el('wf-name').value.trim(),
+              leave_type_id: el('wf-type').value || null,
+              min_duration_days: Number(el('wf-min-days').value || 0),
+              is_default: el('wf-default').value === 'true',
+              steps: steps,
+            },
+          });
+          notice(errorBox, '', null);
+          toast('Approval chain created.');
+          el('wf-steps').replaceChildren();
+          addStepRow();
+          loadWorkflows();
+        } catch (error) {
+          notice(errorBox, error.message, 'error');
+        }
+      });
+
+      /* ── Year-end ─────────────────────────────────────────────────── */
+      function summaryCard(label, value) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const heading = document.createElement('h3');
+        heading.style.cssText =
+          'font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)';
+        heading.textContent = label;
+        const big = document.createElement('div');
+        big.style.cssText = 'font-size:22px;font-weight:700';
+        big.textContent = value;
+        card.append(heading, big);
+        return card;
+      }
+
+      async function runYearEnd(commit) {
+        const year = Number(el('ye-year').value);
+        if (!year) {
+          notice(el('page-state'), 'Choose the leave year to process.', 'error');
+          return;
+        }
+        if (commit && !window.confirm(
+          'Commit the ' + year + ' rollover? Balances will be written for every employee.'
+        )) return;
+
+        text(el('ye-status'), commit ? 'Committing…' : 'Simulating…');
+        try {
+          const result = await api('/policies/year-end', {
+            method: 'POST',
+            body: {
+              year: year,
+              leave_type_id: el('ye-type').value || null,
+              commit: commit,
+            },
+          });
+          lastSimulation = result;
+
+          const summary = el('ye-summary');
+          summary.replaceChildren(
+            summaryCard('Employees', result.employees_processed),
+            summaryCard('Rolls over', days(result.total_rolled_over)),
+            summaryCard('Lapses', days(result.total_lapsed))
+          );
+
+          const body = el('ye-body');
+          body.replaceChildren();
+          result.rows.forEach(function (row) {
+            const tr = document.createElement('tr');
+            cell(tr, row.full_name);
+            cell(tr, row.leave_type);
+            cell(tr, row.closing_balance);
+            cell(tr, row.rolled_over);
+            cell(tr, row.lapsed);
+            cell(tr, row.encashed);
+            body.appendChild(tr);
+          });
+
+          el('ye-commit').disabled = commit;
+          text(
+            el('ye-status'),
+            commit
+              ? 'Committed for ' + result.employees_processed + ' employees.'
+              : 'Dry run only — nothing was written.'
+          );
+          notice(el('page-state'), '', null);
+        } catch (error) {
+          text(el('ye-status'), '');
+          fail(error);
+        }
+      }
+
+      el('ye-simulate').addEventListener('click', function () { runYearEnd(false); });
+      el('ye-commit').addEventListener('click', function () { runYearEnd(true); });
+
+      /* ── Billing ──────────────────────────────────────────────────── */
+      async function loadBilling() {
+        const body = el('billing-body');
+        try {
+          const [subscription, plans] = await Promise.all([
+            api('/billing/subscription'),
+            api('/billing/plans').catch(function () { return []; }),
+          ]);
+
+          body.replaceChildren();
+          body.style.color = 'var(--text)';
+          [
+            ['Plan', subscription.subscription_tier],
+            ['Status', subscription.status],
+            ['Seats used', subscription.active_employees + ' of ' + subscription.employee_limit +
+              ' (' + subscription.seats_used_percent + '%)'],
+            ['Seats remaining', subscription.seats_remaining],
+            ['Trial ends', subscription.trial_ends_at
+              ? formatDate(subscription.trial_ends_at.slice(0, 10)) : '—'],
+          ].forEach(function (pair) {
+            const row = document.createElement('div');
+            row.className = 'estimate-row';
+            const left = document.createElement('span');
+            left.textContent = pair[0];
+            const right = document.createElement('strong');
+            right.textContent = pair[1];
+            row.append(left, right);
+            body.appendChild(row);
+          });
+
+          text(
+            el('billing-status'),
+            subscription.billing_enabled ? 'Stripe connected' : 'Stripe not configured'
+          );
+          el('billing-portal').disabled =
+            !subscription.billing_enabled || !subscription.stripe_customer_id;
+
+          const list = el('plan-list');
+          list.replaceChildren();
+          (plans || []).forEach(function (plan) {
+            const li = document.createElement('li');
+            const grow = document.createElement('div');
+            grow.className = 'grow';
+            grow.textContent = plan.tier + ' · up to ' + plan.seats + ' employees';
+            li.appendChild(grow);
+            if (plan.is_current) {
+              const pill = document.createElement('span');
+              pill.className = 'pill approved';
+              pill.textContent = 'current';
+              li.appendChild(pill);
+            }
+            list.appendChild(li);
+          });
+        } catch (error) {
+          body.textContent = error.message;
+        }
+      }
+
+      el('billing-portal').addEventListener('click', async function () {
+        try {
+          const result = await api('/billing/portal', {
+            method: 'POST',
+            body: { return_url: window.location.href },
+          });
+          window.location.href = result.url;
+        } catch (error) {
+          toast(error.message);
+        }
+      });
+
+      /* ── Bootstrap ────────────────────────────────────────────────── */
+      async function loadTypes() {
+        leaveTypes = (await api('/leave-types?include_inactive=true')) || [];
+        renderTypes();
+
+        [el('policy-type'), el('wf-type'), el('ye-type')].forEach(function (select) {
+          const keep = select.value;
+          select.replaceChildren();
+          if (select !== el('policy-type')) {
+            const any = document.createElement('option');
+            any.value = '';
+            any.textContent = select === el('ye-type') ? 'All types' : 'Any';
+            select.appendChild(any);
+          }
+          leaveTypes.forEach(function (type) {
+            const option = document.createElement('option');
+            option.value = type.id;
+            option.textContent = type.name;
+            select.appendChild(option);
+          });
+          select.value = keep;
+        });
+      }
+
+      async function init() {
+        el('ye-year').value = new Date().getFullYear();
+        addStepRow();
+        try {
+          await loadTypes();
+          await Promise.all([loadPolicies(), loadWorkflows()]);
+        } catch (error) {
+          fail(error);
+        }
+      }
+
+      init();
+    })();
+  </script>
+</body>
+
+</html>

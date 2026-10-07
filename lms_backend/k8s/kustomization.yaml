@@ -1,0 +1,32 @@
+# Deploy with `kubectl apply -k k8s/`.
+#
+# The image registry lives here and nowhere else. The manifests carry a
+# ghcr.io placeholder so they are readable on their own, while the Terraform
+# stack provisions an ECR repository — point `newName` at whichever registry
+# actually holds your images and the six references stay in sync.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lms
+
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - worker-deployment.yaml
+  - cronjob-accrual.yaml
+  # secret.example.yaml is intentionally excluded: real secrets are projected
+  # from AWS Secrets Manager by the External Secrets Operator.
+
+commonLabels:
+  app.kubernetes.io/part-of: meritech-lms
+
+images:
+  - name: ghcr.io/meritech/lms-backend
+    # terraform output -raw ecr_repository_url
+    newName: 000000000000.dkr.ecr.us-east-1.amazonaws.com/lms-backend
+    # Pin a digest or an immutable tag per release; `latest` in a rolling
+    # update gives you no way to know what is actually running.
+    newTag: latest

@@ -1,0 +1,239 @@
+MASTER ARCHITECTURE & IMPLEMENTATION SPECIFICATION
+
+Project: Enterprise SaaS Leave Management System (LMS) integrated with HRMS & RAG Chatbot
+Target Audience: AI Development Agents (Frontend, Backend, DevOps, QA, Security)
+Author Role: Senior Staff Software Architect
+[AGENT DIRECTIVE]
+
+To all AI agents processing this document: You are acting as a Senior Engineering Team. You will divide the tasks defined in this document based on your specialized roles (Frontend, Backend, DevOps, Security, QA). Do not take shortcuts. Implement production-ready, enterprise-grade code using the exact tech stack, architectural patterns, and edge-case mitigations outlined below. Assume a multi-tenant SaaS environment (500+ employees per tenant).
+1. SYSTEM OVERVIEW & INTEGRATION TOPOLOGY
+
+This system is an Enterprise Leave Management System (LMS) built as a SaaS platform. It must integrate seamlessly with an existing RAG-based HR Policy Chatbot.
+
+The RAG Integration & UI Flow:
+
+    The Bridge: The existing RAG chatbot UI will feature a prominent, elegantly animated button in the Top-Right Corner: "Apply for Leave".
+
+    Authentication State: Both the RAG chatbot and the LMS will share authentication state via an SSO (Single Sign-On) mechanism (using HTTPOnly Secure Cookies + JWT) to ensure zero-friction navigation.
+
+    Action: Clicking the button routes the user into the LMS Dashboard natively, without a page reload if part of the same SPA (Single Page Application), or via seamless SSO redirection if hosted on a sub-domain.
+
+2. TECHNOLOGY STACK (The "Enterprise Core")
+Backend (Python Mandated)
+
+    Framework: FastAPI (Python 3.11+). Chosen for native asynchronous I/O, extreme performance, automatic OpenAPI documentation, and strict type-hinting (Pydantic), which is crucial for enterprise data validation.
+
+    Database (RDBMS): PostgreSQL 16. The only choice for complex, ACID-compliant financial/HR transactions.
+
+    ORM & Mapping: SQLAlchemy 2.0 (Async engine) with Alembic for migrations.
+
+    Caching & Session State: Redis (for rate-limiting, session sharing with RAG bot, and caching complex hierarchy lookups).
+
+    Message Broker & Background Jobs: Celery + RabbitMQ (for async email notifications, report generation) and Kubernetes CronJobs (for midnight leave accruals).
+
+Frontend (Web-Based SaaS)
+
+    Framework: Next.js 14 (React) with App Router. Allows for fast CSR (Client-Side Rendering) for dashboards and SSR (Server-Side Rendering) for SEO-facing SaaS landing pages.
+
+    Styling: TailwindCSS + shadcn/ui + Framer Motion. For a creative, highly intuitive, and modern UI with micro-interactions.
+
+    State Management: Zustand (lightweight, unopinionated) + React Query (for aggressive client-side caching, pagination, and backend syncing).
+
+Infrastructure & DevOps
+
+    Containerization: Docker (multi-stage builds for minimal attack surface).
+
+    Orchestration: Kubernetes (K8s) (EKS/GKE).
+
+    Infrastructure as Code: Terraform.
+
+    CI/CD: GitHub Actions (Lint, Test, SonarQube scan, Build, Push to Image Registry, Deploy to K8s).
+
+3. ENTERPRISE BACKEND MAPPING & DATABASE SCHEMA
+
+The database must be designed for Multi-Tenancy (SaaS model). Every table must have a tenant_id.
+
+Core Entities & Relationships:
+
+    Tenant (Company): Manages subscription limits, active status.
+
+    User (Employee): Contains role (Admin, HR, Manager, Employee), manager_id (Self-referential foreign key for reporting hierarchy), timezone, location_id.
+
+    LeaveType: E.g., Annual, Sick, Maternity, Unpaid, Comp-Off. Configurable per tenant. Includes rules (requires medical certificate if > 2 days).
+
+    LeavePolicy: Defines accrual rates (e.g., 1.5 days/month), rollover limits (max 5 days carry forward to next year), pro-rata logic.
+
+    LeaveBalance: Tracks current, accrued, used, and rolled-over balances per User per LeaveType.
+
+    LeaveRequest: The core transactional table. Fields: start_date, end_date, duration (allows 0.5 for half days), status (Pending, Approved, Rejected, Cancelled), reason, attachment_url.
+
+    ApprovalWorkflow: Maps custom approval chains (e.g., Employee -> Manager -> HR).
+
+    HolidayCalendar: Geo-specific public holidays. (A user in the NY office doesn't get India public holidays).
+
+    AuditLog: Immutable ledger of every action (Who approved what, when, from what IP).
+
+4. COMPREHENSIVE FEATURE SET ("Every Last Bit")
+Employee Facing
+
+    Intuitive Dashboard: Visual donut charts of leave balances. Upcoming company holidays widget. "Who is away" team widget.
+
+    Fractional Leaves: Support for half-days (First Half / Second Half) and hourly leaves.
+
+    Conflict Warnings: "3 other people in your department are on leave during these dates."
+
+    Document Upload: Drag-and-drop medical certificates straight into the leave request (stored securely in AWS S3 with pre-signed URLs).
+
+    Delegation: "Assign temporary approver" while the manager is on leave.
+
+Manager Facing
+
+    Calendar View: Visual overlapping of team leaves to prevent understaffing.
+
+    Bulk Approvals: Approve/reject multiple requests via a single dashboard.
+
+    One-Click Actions from Email: Actionable buttons inside the email notification to approve/reject without logging in (using secure, expiring JWT tokens in the URL).
+
+HR / Admin Facing (SaaS Configuration)
+
+    Policy Engine Builder: UI to map out complex rules (e.g., "Sick leave cannot be clubbed with Annual leave").
+
+    Custom Workflows: Drag-and-drop approval chains (e.g., L1 Manager -> L2 Manager -> HR).
+
+    Year-End Processing: Dry-run simulations for leave lapsing/rollover before actually committing the data at year-end.
+
+    SaaS Billing Dashboard: Stripe integration to manage their 500+ employee tier subscription.
+
+5. EDGE CASES & OUTLIERS (The Senior Developer Foresight)
+
+Agents: You MUST implement technical safeguards for the following scenarios.
+
+    The Race Condition (Double Booking):
+
+        Scenario: User has 1 day left. They open two tabs, submit two separate leave requests for 1 day at the exact same millisecond.
+
+        Solution: Implement pessimistic locking at the database level (SELECT ... FOR UPDATE in SQLAlchemy) on the LeaveBalance row during the transaction.
+
+    The Timezone Nightmare:
+
+        Scenario: Employee is in Japan, Manager in San Francisco, DB in UTC. A one-day leave on Tuesday in Japan spans Monday/Tuesday in SF.
+
+        Solution: ALL dates/times stored in Postgres as TIMESTAMP WITH TIME ZONE (UTC). The backend uses the location_id of the requester to calculate working days and deduct balances. The UI converts UTC to local time for display only.
+
+    Retroactive Policy Changes:
+
+        Scenario: HR changes the annual leave policy from 20 days to 15 days in October. If you just update the policy, everyone's historical balances break.
+
+        Solution: Immutable versioning. Create a new LeavePolicy row with an effective_from date. Historic calculations reference the old policy ID.
+
+    Leap Years & Pro-Rata Joiners:
+
+        Scenario: Employee joins on Feb 29th, or mid-month.
+
+        Solution: Granular daily accrual math in the backend using Python's dateutil.
+
+    Midnight Accrual Load:
+
+        Scenario: At Jan 1st, 00:00, the system must run rollover calculations for 500,000 employees globally across all SaaS tenants. This will crash a monolithic loop.
+
+        Solution: K8s CronJob fires an event -> Celery Beat picks it up -> fans out to 100+ Celery worker nodes using RabbitMQ. Workers process chunks of 1,000 users asynchronously.
+
+6. THE "FORTRESS" - ENTERPRISE SECURITY
+
+    Multi-Tenant Data Isolation: Implement Row-Level Security (RLS) in PostgreSQL so a bug in the code can never query another company's data.
+
+    Authentication & Authorization: OAuth2 with OIDC. Use short-lived Access Tokens (15 mins) and HTTPOnly Refresh Tokens (7 days). Implement strict RBAC (Role-Based Access Control) using Python decorators (@requires_role("manager")).
+
+    PII & Data Encryption: Encrypt PII (Personal Identifiable Information) at rest using AES-256 (AWS KMS or HashiCorp Vault). Encrypt in transit with TLS 1.3.
+
+    Application Security:
+
+        Rate Limiting: Redis-based sliding window rate limit per Tenant and per IP to prevent DDoS and Brute Force.
+
+        Input Sanitization: Pydantic models must strictly regex-validate all inputs to prevent SQLi and XSS. No raw SQL queries allowed; only ORM.
+
+        WAF (Web Application Firewall): Setup AWS WAF/Cloudflare rules to block known malicious payloads.
+
+7. SYSTEMATIC FILE STRUCTURE (Microservice Architecture)
+
+Agents: Follow this exact directory structure for the Python FastAPI backend to ensure production-level code organization.
+Plaintext
+
+lms_backend/
+├── alembic/                  # Database migration scripts
+├── app/
+│   ├── api/
+│   │   ├── dependencies/     # Auth checks, DB sessions, rate limiters
+│   │   ├── routes/           # v1/leaves.py, v1/users.py, v1/policies.py
+│   ├── core/
+│   │   ├── config.py         # Pydantic BaseSettings (Env vars)
+│   │   ├── security.py       # JWT hashing, Password checking
+│   │   ├── exceptions.py     # Custom global error handlers
+│   ├── db/
+│   │   ├── session.py        # SQLAlchemy async engine
+│   │   ├── base_class.py     # Declarative base with tenant_id injection
+│   ├── models/               # SQLAlchemy ORM Models
+│   ├── schemas/              # Pydantic Models (Input/Output validation)
+│   ├── services/             # BUSINESS LOGIC (Separated from routes)
+│   │   ├── leave_calculator.py # Pro-rata, timezone, holiday intersection logic
+│   ├── tasks/                # Celery background tasks
+│   │   ├── accrual_worker.py
+│   │   ├── email_worker.py
+├── tests/                    # Pytest suite
+│   ├── unit/
+│   ├── integration/
+│   ├── e2e/
+├── Dockerfile                # Multi-stage production Dockerfile
+├── k8s/                      # Kubernetes manifests
+│   ├── deployment.yaml       # Backend Deployment
+│   ├── hpa.yaml              # Horizontal Pod Autoscaler
+│   ├── cronjob-accrual.yaml  # Nightly DB updates
+│   ├── service.yaml
+├── requirements.txt          # or pyproject.toml (Poetry recommended)
+└── main.py                   # FastAPI application initialization
+
+8. KUBERNETES & DEVOPS BLUEPRINT
+
+    Docker Multi-Stage Build:
+
+        Stage 1: Build dependencies (wheels) in a heavy image.
+
+        Stage 2: Copy only compiled binaries to a distroless/alpine Python image to minimize CVE surface area.
+
+    K8s Health Checks:
+
+        livenessProbe: Hits /health/live. If it fails, K8s restarts the pod.
+
+        readinessProbe: Hits /health/ready (checks DB and Redis connection). Traffic isn't routed until this passes.
+
+    Horizontal Pod Autoscaler (HPA):
+
+        Scale from 3 pods to 50 pods automatically if CPU > 70% or Memory > 80%.
+
+    Zero-Downtime Deployments:
+
+        Rolling updates strategy. Alembic DB migrations run as a PreHook or initContainer before new code boots up. Backwards compatible schema changes only.
+
+9. TESTING PROTOCOL
+
+Agents: Code generation is incomplete without the corresponding tests.
+
+    Unit Tests (Pytest): 100% coverage on leave_calculator.py. Mock the DB. Test leap years, negative balances, and weekend overlap algorithms.
+
+    Integration Tests: Test the API endpoints connected to a temporary PostgreSQL Docker container (Testcontainers).
+
+    E2E (Cypress/Playwright): Automate a headless browser logging in from the RAG Bot, clicking the Top-Right button, and successfully submitting a leave form.
+
+    Load Testing (Locust): Simulate 10,000 employees logging in at 9:00 AM on Monday to check their balances. Ensure P99 latency is under 200ms.
+
+[EXECUTION COMMAND FOR AI AGENTS]
+
+To the AI Agents:
+
+    Frontend Agent: Begin scaffolding the Next.js 14 application. Focus heavily on the UI/UX, the RAG-bot integration button, and Zustand state management.
+
+    Backend Agent: Initialize the FastAPI repository using the file structure provided above. Establish the SQLAlchemy models with tenant_id baked into the base class for RLS.
+
+    DevOps Agent: Draft the Dockerfile, K8s deployment manifests (including the accrual CronJob), and the GitHub Actions CI pipeline.
+
+    Security/QA Agent: Write the Pydantic strict schemas, auth dependency injection, and set up the PyTest environment focusing first on the Race Condition test cases.

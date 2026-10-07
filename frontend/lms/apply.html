@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply for Leave · Meritech</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="lms.css">
+</head>
+
+<body>
+  <div class="shell" id="lms-app">
+    <header class="lms-header">
+      <div class="lms-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="3"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <path d="M12 14v4M10 16h4"></path>
+        </svg>
+      </div>
+      <div class="lms-title">
+        <h1>Apply for Leave</h1>
+        <p>We'll show the cost before you submit</p>
+      </div>
+      <nav>
+        <a class="nav-link" href="index.html">← Dashboard</a>
+      </nav>
+    </header>
+
+    <form class="card" id="apply-form" novalidate>
+      <div class="notice error" id="form-error" hidden></div>
+
+      <div class="form-grid">
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="leave-type">Leave type</label>
+          <select id="leave-type" name="leave_type_id" required>
+            <option value="">Loading…</option>
+          </select>
+          <span class="hint" id="leave-type-hint"></span>
+        </div>
+
+        <div class="field">
+          <label for="start-date">First day away</label>
+          <input type="date" id="start-date" name="start_date" required>
+        </div>
+
+        <div class="field">
+          <label for="end-date">Last day away</label>
+          <input type="date" id="end-date" name="end_date" required>
+        </div>
+
+        <div class="field" id="start-part-field">
+          <label for="start-day-part">First day</label>
+          <select id="start-day-part" name="start_day_part">
+            <option value="full_day">Full day</option>
+            <option value="first_half">First half only</option>
+            <option value="second_half">Second half only</option>
+          </select>
+        </div>
+
+        <div class="field" id="end-part-field">
+          <label for="end-day-part">Last day</label>
+          <select id="end-day-part" name="end_day_part">
+            <option value="full_day">Full day</option>
+            <option value="first_half">First half only</option>
+            <option value="second_half">Second half only</option>
+          </select>
+        </div>
+
+        <div class="field" id="hours-field" hidden>
+          <label for="duration-hours">Hours</label>
+          <input type="number" id="duration-hours" name="duration_hours" min="0.25" max="24"
+            step="0.25" inputmode="decimal">
+        </div>
+
+        <div class="field">
+          <label for="contact-number">Contact number <span class="hint">(optional)</span></label>
+          <input type="tel" id="contact-number" name="contact_number" autocomplete="tel"
+            placeholder="+91 98765 43210">
+        </div>
+
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="reason">Reason</label>
+          <textarea id="reason" name="reason" maxlength="1000"
+            placeholder="A short note for your approver"></textarea>
+          <span class="hint" id="reason-count">0 / 1000</span>
+        </div>
+
+        <div class="field" id="attachment-field" style="grid-column: 1 / -1;" hidden>
+          <label for="attachment">Supporting document</label>
+          <input type="file" id="attachment" accept="image/png,image/jpeg,image/webp,application/pdf">
+          <span class="hint" id="attachment-hint">
+            Required for longer absences. PDF or image, up to 10&nbsp;MB.
+          </span>
+        </div>
+      </div>
+
+      <div class="section" style="margin: 24px 0 0;">
+        <div class="section-head">
+          <h2>Estimate</h2>
+          <span id="estimate-status">Pick a leave type and dates</span>
+        </div>
+        <div class="card" id="estimate-card" style="background: var(--surface-2);">
+          <div id="estimate-body" class="muted" style="color: var(--text-muted); font-size: 13.5px;">
+            Nothing to price yet.
+          </div>
+        </div>
+      </div>
+
+      <div class="notice warn" id="conflict-notice" hidden></div>
+
+      <div class="actions">
+        <button type="submit" class="btn" id="submit-btn">Submit request</button>
+        <a class="btn ghost" href="index.html">Cancel</a>
+        <span class="hint" id="submit-hint"></span>
+      </div>
+    </form>
+  </div>
+
+  <script src="lms.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const { el, text, show, notice, toast, api, formatDate, days, todayISO, debounce } = LMS;
+
+      const form = el('apply-form');
+      const typeSelect = el('leave-type');
+      const startDate = el('start-date');
+      const endDate = el('end-date');
+      const startPart = el('start-day-part');
+      const endPart = el('end-day-part');
+      const reason = el('reason');
+      const errorBox = el('form-error');
+      const submitBtn = el('submit-btn');
+
+      let leaveTypes = [];
+      let selectedType = null;
+      let lastEstimate = null;
+      let attachmentUrl = null;
+      let acknowledgedConflicts = false;
+
+      function currentType() {
+        return leaveTypes.find(function (type) { return type.id === typeSelect.value; }) || null;
+      }
+
+      /* ── Client-side validation ───────────────────────────────────
+         Mirrors the Pydantic rules in app/schemas/leave_request.py so the
+         user gets an answer without a round trip. The server still
+         re-validates everything; this is convenience, not a gate. */
+      function validate() {
+        // A contradictory range is reported before any missing field: it is
+        // the error the user can actually see on screen.
+        if (startDate.value && endDate.value && endDate.value < startDate.value) {
+          return 'The end date cannot be before the start date.';
+        }
+        if (!typeSelect.value) return 'Choose a leave type.';
+        if (!startDate.value) return 'Choose the first day you will be away.';
+        if (!endDate.value) return 'Choose the last day you will be away.';
+
+        const start = new Date(startDate.value);
+        const end = new Date(endDate.value);
+        const span = Math.round((end - start) / 86400000);
+        if (span > 366) return 'A single request cannot span more than 366 days.';
+
+        if (span === 0) {
+          if (
+            startPart.value !== endPart.value &&
+            startPart.value !== 'full_day' &&
+            endPart.value !== 'full_day'
+          ) {
+            return 'For a single-day request the two half-day choices must match.';
+          }
+        } else {
+          if (startPart.value === 'first_half') {
+            return 'On a multi-day request the first day cannot be "first half only" — ' +
+              'use "second half only" to start after lunch.';
+          }
+          if (endPart.value === 'second_half') {
+            return 'On a multi-day request the last day cannot be "second half only" — ' +
+              'use "first half only" to return after lunch.';
+          }
+        }
+
+        const type = currentType();
+        if (type) {
+          if (!type.allow_half_day &&
+            (startPart.value !== 'full_day' || endPart.value !== 'full_day')) {
+            return type.name + ' cannot be taken as a half day.';
+          }
+          if (type.max_consecutive_days && span + 1 > type.max_consecutive_days) {
+            return type.name + ' is limited to ' + type.max_consecutive_days +
+              ' consecutive days.';
+          }
+          if (!type.allow_retroactive && startDate.value < todayISO()) {
+            return type.name + ' cannot be applied for retroactively.';
+          }
+        }
+
+        if (lastEstimate && lastEstimate.requires_attachment && !attachmentUrl) {
+          return 'This request needs a supporting document before you can submit it.';
+        }
+        return null;
+      }
+
+      function payload() {
+        const body = {
+          leave_type_id: typeSelect.value,
+          start_date: startDate.value,
+          end_date: endDate.value,
+          start_day_part: startPart.value,
+          end_day_part: endPart.value,
+          reason: reason.value.trim() || null,
+          contact_number: el('contact-number').value.trim() || null,
+          attachment_url: attachmentUrl,
+          acknowledged_conflicts: acknowledgedConflicts,
+        };
+        const type = currentType();
+        if (type && type.allow_hourly && el('duration-hours').value) {
+          body.duration_hours = Number(el('duration-hours').value);
+        }
+        return body;
+      }
+
+      function renderEstimate(estimate) {
+        lastEstimate = estimate;
+        const body = el('estimate-body');
+        body.replaceChildren();
+        body.style.color = 'var(--text)';
+
+        function row(label, value, emphasis) {
+          const div = document.createElement('div');
+          div.className = 'estimate-row';
+          const left = document.createElement('span');
+          left.textContent = label;
+          const right = document.createElement(emphasis ? 'strong' : 'span');
+          right.textContent = value;
+          div.append(left, right);
+          body.appendChild(div);
+        }
+
+        row('Working days deducted', days(estimate.working_days), true);
+        row('Calendar days', estimate.calendar_days + '');
+        row('Weekends skipped', estimate.weekend_days + '');
+        row('Public holidays skipped', estimate.holiday_days + '');
+        if (estimate.holidays_excluded.length) {
+          row('Holidays in range', estimate.holidays_excluded.map(formatDate).join(', '));
+        }
+        row('Balance today', days(estimate.available_balance));
+        row('Balance after approval', days(estimate.balance_after), true);
+
+        (estimate.warnings || []).forEach(function (warning) {
+          const div = document.createElement('div');
+          div.className = 'estimate-row';
+          div.style.color = 'var(--warning)';
+          div.textContent = warning;
+          body.appendChild(div);
+        });
+
+        const conflictBox = el('conflict-notice');
+        if (estimate.conflicts && estimate.conflicts.overlapping_count > 0) {
+          const names = estimate.conflicts.teammates.join(', ');
+          notice(
+            conflictBox,
+            estimate.conflicts.overlapping_count +
+            ' teammate(s) are already away during these dates' +
+            (names ? ' (' + names + ')' : '') +
+            '. You can still submit — your approver will see the overlap.',
+            'warn'
+          );
+          acknowledgedConflicts = true;
+        } else {
+          notice(conflictBox, '', null);
+          acknowledgedConflicts = false;
+        }
+
+        show(el('attachment-field'), !!estimate.requires_attachment);
+        text(el('estimate-status'), 'Live');
+      }
+
+      const runEstimate = debounce(async function () {
+        const problem = validate();
+        // Attachment is a submit-time concern; don't block the preview on it.
+        if (problem && !problem.startsWith('This request needs a supporting')) {
+          text(el('estimate-status'), 'Waiting for valid dates');
+          notice(errorBox, problem, 'error');
+          return;
+        }
+        notice(errorBox, '', null);
+        text(el('estimate-status'), 'Calculating…');
+
+        try {
+          const estimate = await api('/leaves/estimate', {
+            method: 'POST',
+            body: {
+              leave_type_id: typeSelect.value,
+              start_date: startDate.value,
+              end_date: endDate.value,
+              start_day_part: startPart.value,
+              end_day_part: endPart.value,
+            },
+          });
+          renderEstimate(estimate);
+        } catch (error) {
+          text(el('estimate-status'), 'Unavailable');
+          notice(errorBox, error.message, 'error');
+        }
+      }, 350);
+
+      function onTypeChange() {
+        selectedType = currentType();
+        const hint = el('leave-type-hint');
+        if (!selectedType) {
+          text(hint, '');
+          return;
+        }
+        const bits = [];
+        if (!selectedType.is_paid) bits.push('Unpaid');
+        if (selectedType.min_notice_days > 0) {
+          bits.push(selectedType.min_notice_days + ' day(s) notice required');
+        }
+        if (selectedType.max_consecutive_days) {
+          bits.push('max ' + selectedType.max_consecutive_days + ' consecutive days');
+        }
+        if (selectedType.attachment_required_above_days != null) {
+          bits.push('document needed above ' +
+            selectedType.attachment_required_above_days + ' days');
+        }
+        if (!selectedType.allow_retroactive) bits.push('no backdating');
+        text(hint, bits.join(' · '));
+
+        const half = selectedType.allow_half_day;
+        show(el('start-part-field'), half);
+        show(el('end-part-field'), half);
+        if (!half) {
+          startPart.value = 'full_day';
+          endPart.value = 'full_day';
+        }
+        show(el('hours-field'), !!selectedType.allow_hourly);
+        runEstimate();
+      }
+
+      /* Attachments go straight to object storage via a presigned URL, so
+         the document never passes through the API pods. */
+      async function uploadAttachment(file) {
+        const presign = await api('/leaves/attachments/presign', {
+          method: 'POST',
+          body: {
+            filename: file.name,
+            content_type: file.type,
+            size_bytes: file.size,
+          },
+        });
+        const upload = await fetch(presign.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!upload.ok) throw new Error('Upload failed. Please try again.');
+        return presign.upload_url.split('?')[0];
+      }
+
+      el('attachment').addEventListener('change', async function (event) {
+        const file = event.target.files[0];
+        if (!file) {
+          attachmentUrl = null;
+          return;
+        }
+        text(el('attachment-hint'), 'Uploading ' + file.name + '…');
+        try {
+          attachmentUrl = await uploadAttachment(file);
+          text(el('attachment-hint'), file.name + ' attached.');
+        } catch (error) {
+          attachmentUrl = null;
+          text(el('attachment-hint'), error.message);
+        }
+      });
+
+      reason.addEventListener('input', function () {
+        text(el('reason-count'), reason.value.length + ' / 1000');
+      });
+
+      [typeSelect].forEach(function (node) {
+        node.addEventListener('change', onTypeChange);
+      });
+      [startDate, endDate, startPart, endPart, el('duration-hours')].forEach(function (node) {
+        node.addEventListener('change', runEstimate);
+      });
+      // Mirror the start date into the end date on first pick — most
+      // requests are for a single day.
+      startDate.addEventListener('change', function () {
+        if (!endDate.value || endDate.value < startDate.value) {
+          endDate.value = startDate.value;
+        }
+        endDate.min = startDate.value;
+      });
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const problem = validate();
+        if (problem) {
+          notice(errorBox, problem, 'error');
+          errorBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
+        notice(errorBox, '', null);
+        submitBtn.disabled = true;
+        text(el('submit-hint'), 'Submitting…');
+
+        try {
+          const created = await api('/leaves', { method: 'POST', body: payload() });
+          toast('Request submitted — ' + days(created.duration_days) + ' pending approval.');
+          sessionStorage.setItem('lms_last_request_id', created.id);
+          setTimeout(function () { window.location.href = 'index.html'; }, 900);
+        } catch (error) {
+          submitBtn.disabled = false;
+          text(el('submit-hint'), '');
+          notice(errorBox, error.message, 'error');
+          errorBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      });
+
+      async function init() {
+        startDate.min = todayISO();
+        endDate.min = todayISO();
+        try {
+          leaveTypes = (await api('/leave-types')) || [];
+          typeSelect.replaceChildren();
+
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = leaveTypes.length
+            ? 'Select a leave type…'
+            : 'No leave types configured';
+          typeSelect.appendChild(placeholder);
+
+          leaveTypes
+            .filter(function (type) { return type.is_active; })
+            .forEach(function (type) {
+              const option = document.createElement('option');
+              option.value = type.id;
+              option.textContent = type.name;
+              typeSelect.appendChild(option);
+            });
+        } catch (error) {
+          typeSelect.replaceChildren();
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Unavailable';
+          typeSelect.appendChild(option);
+          notice(
+            errorBox,
+            error.code === 'no_session'
+              ? 'Please sign in to the HR assistant first, then reopen the leave portal.'
+              : error.message,
+            'error'
+          );
+          submitBtn.disabled = true;
+        }
+      }
+
+      init();
+    })();
+  </script>
+</body>
+
+</html>
